@@ -1,0 +1,78 @@
+:root {
+  /* Palette — institutional "policy dossier": warm paper, ink, UN-leaning deep teal accent */
+  --paper: oklch(98.5% 0.004 95);
+  --paper-raised: oklch(100% 0 0);
+  --ink: oklch(23% 0.012 260);
+  --ink-soft: oklch(46% 0.012 260);
+  --ink-faint: oklch(62% 0.01 260);
+  --rule: oklch(89% 0.008 260);
+  --rule-strong: oklch(80% 0.01 260);
+  --accent: oklch(48% 0.09 220);
+  --accent-soft: oklch(95% 0.03 220);
+
+  /* Semantic status */
+  --ok: oklch(52% 0.12 155);
+  --ok-soft: oklch(95% 0.04 155);
+  --warn: oklch(58% 0.13 75);
+  --warn-soft: oklch(95% 0.05 75);
+  --bad: oklch(55% 0.16 25);
+  --bad-soft: oklch(95% 0.04 25);
+
+  /* Type scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.84rem;
+  --text-base: 0.95rem;
+  --text-lg: 1.15rem;
+  --text-display: clamp(1.6rem, 1.1rem + 1.8vw, 2.5rem);
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "SF Mono", "Cascadia Code", "JetBrains Mono", ui-monospace, monospace;
+
+  --space: clamp(1rem, 0.6rem + 1.5vw, 2rem);
+  --radius: 4px;
+  --shadow-raised: 0 1px 2px oklch(20% 0.02 260 / 0.05), 0 4px 16px oklch(20% 0.02 260 / 0.06);
+  --duration: 160ms;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  font-feature-settings: "tnum" 1, "cv05" 1;
+  /* faint paper grain via layered gradients */
+  background-image:
+    radial-gradient(oklch(20% 0.02 260 / 0.015) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+
+h1, h2, h3 {
+  font-family: var(--serif);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
