@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+.turbo/
+
+# Data / models / artifacts (keep weights tracked deliberately, not here)
+*.pdf
+*.log
+data/raw/
+data/cache/
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
