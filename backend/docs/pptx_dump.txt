@@ -1,0 +1,174 @@
+== RDTII_AutoExtract.pptx ==
+Slide size: 13.33 x 7.50 inches
+Slides: 10
+Layouts in master: ['Title Slide', 'Title and Content', 'Section Header', 'Two Content', 'Comparison', 'Title Only', 'Blank', 'Content with Caption', 'Picture with Caption', 'Title and Vertical Text', 'Vertical Title and Text']
+
+--- Slide 1 (layout: Blank) ---
+  [TEXT_BOX (17)] TextBox 3: GLOBAL HACKATHON ON AI FOR DIGITAL TRADE REGULATORY ANALYSIS  ·  UN ESCAP & KMITL  ·  2026
+  [TEXT_BOX (17)] TextBox 4: RDTII AutoExtract | An Open-Source, Model-Agnostic AI Pipeline for Automated Digital Trade Regulatory Analysis Across Asia-Pacific Jurisdictions
+  [TEXT_BOX (17)] TextBox 6: Automating ~80% of the RDTII discover → describe workflow — Pillar 6 (Cross-Border Data Flows) and Pillar 7 (Domestic Data Protection) — at article-level granularity, with transparent human review for the final ~20%.
+  [TEXT_BOX (17)] TextBox 7: Licensed under Apache 2.0
+  NOTES: Good day, and thank you for the opportunity to present. This presentation introduces RDTII AutoExtract, an open-source, model-agnostic artificial intelligence pipeline that we have developed for the Global Hackathon on AI for Digital Trade Regulatory Analysis, jointly organised by UN ESCAP and KMITL
+
+--- Slide 2 (layout: Blank) ---
+  [TEXT_BOX (17)] TextBox 3: THE PROBLEM
+  [TEXT_BOX (17)] TextBox 4: A Manual Workflow That Does Not Scale
+  [TEXT_BOX (17)] TextBox 6: RDTII AutoExtract  ·  UN ESCAP & KMITL Global Hackathon 2026
+  [TEXT_BOX (17)] TextBox 7: 2
+  [TEXT_BOX (17)] TextBox 8: —  ESCAP researchers must manually search government portals, retrieve regulatory documents, read legal text, and extract structured data. | —  This is performed at article-level granularity, across many Asia-Pacific jur
+  [TEXT_BOX (17)] TextBox 10: THE BURDEN TODAY | 100% | manual effort — search, read, extract, map | Many | jurisdictions and languages to cover | Per-article | granularity required for every document
+  NOTES: Allow me to begin with the problem we set out to solve. At present, the RDTII workflow is almost entirely manual. ESCAP researchers must search government portals by hand, retrieve regulatory documents, read through dense legal text, and then extract structured data — and they must do this at articl
+
+--- Slide 3 (layout: Blank) ---
+  [TEXT_BOX (17)] TextBox 3: OUR GOAL
+  [TEXT_BOX (17)] TextBox 4: Project Objectives
+  [TEXT_BOX (17)] TextBox 6: RDTII AutoExtract  ·  UN ESCAP & KMITL Global Hackathon 2026
+  [TEXT_BOX (17)] TextBox 7: 3
+  [TEXT_BOX (17)] TextBox 10: 01 | Automate discovery | Locate regulatory documents beyond the existing ESCAP RDTII database.
+  [TEXT_BOX (17)] TextBox 13: 02 | Article-level extraction | Capture all six mandatory fields: title, last update, URL, scope, provisions, impact.
+  [TEXT_BOX (17)] TextBox 16: 03 | Traceable mapping | Map provisions to Pillar 6 and 7 sub-indicators with verifiable citations.
+  [TEXT_BOX (17)] TextBox 19: 04 | Self-hostable & open | Deliver an open-source tool deployable without proprietary infrastructure.
+  [TEXT_BOX (17)] TextBox 22: 05 | Model-agnostic | Make every AI component swappable to open-weight models (e.g. Llama 3) via config.
+  [TEXT_BOX (17)] TextBox 25: 06 | Human-first review | Provide a non-technical UI where any mapping can be verified or rejected in seconds.
+  NOTES: Our objectives follow directly from that problem. First, we aim to automate document discovery so that the system can locate relevant regulations even when they lie outside the existing ESCAP database. Second, we target genuine article-level extraction, capturing all six mandatory fields — title, la
+
+--- Slide 4 (layout: Blank) ---
+  [TEXT_BOX (17)] TextBox 3: DESIGN PHILOSOPHY
+  [TEXT_BOX (17)] TextBox 4: Ports & Adapters: A Model-Agnostic Core
+  [TEXT_BOX (17)] TextBox 6: RDTII AutoExtract  ·  UN ESCAP & KMITL Global Hackathon 2026
+  [TEXT_BOX (17)] TextBox 7: 4
+  [TEXT_BOX (17)] TextBox 8: —  Built on ports & adapters (hexagonal) architecture. | —  The core domain depends only on interfaces — never on a concrete model. | —  Every AI model (LLM, OCR, captioner, embeddings, graph) is a swappable suggestion, 
+  [TEXT_BOX (17)] TextBox 10: CORE DOMAIN | ports only
+  [AUTO_SHAPE (1)] Rounded Rectangle 11: LLM
+  [AUTO_SHAPE (1)] Rounded Rectangle 12: OCR
+  [AUTO_SHAPE (1)] Rounded Rectangle 13: Captioner
+  [AUTO_SHAPE (1)] Rounded Rectangle 14: Embeddings
+  [AUTO_SHAPE (1)] Rounded Rectangle 15: Vector store
+  [AUTO_SHAPE (1)] Rounded Rectangle 16: Graph
+  NOTES: This slide explains the single most important architectural decision in the project: the system is model-agnostic by design. We build on a ports and adapters — also called hexagonal — architecture. The core domain, which contains the business logic of the RDTII workflow, depends only on interfaces, 
+
+--- Slide 5 (layout: Blank) ---
+  [TEXT_BOX (17)] TextBox 3: HOW IT WORKS
+  [TEXT_BOX (17)] TextBox 4: The Five-Stage Pipeline
+  [TEXT_BOX (17)] TextBox 6: RDTII AutoExtract  ·  UN ESCAP & KMITL Global Hackathon 2026
+  [TEXT_BOX (17)] TextBox 7: 5
+  [TEXT_BOX (17)] TextBox 10: STAGE 1
+  [TEXT_BOX (17)] TextBox 11: Discovery & Retrieval | Crawl national portals, gazettes, and ministry sites; capture full provenance per document.
+  [TEXT_BOX (17)] TextBox 12: ›
+  [TEXT_BOX (17)] TextBox 15: STAGE 2
+  [TEXT_BOX (17)] TextBox 16: OCR & Captioning | Convert any format to clean text at <5% CER; SigLIP-style captions become the basis for tags.
+  [TEXT_BOX (17)] TextBox 17: ›
+  [TEXT_BOX (17)] TextBox 20: STAGE 3
+  [TEXT_BOX (17)] TextBox 21: Tagging & Extraction | Multi-label tag each article; RAG extracts all 6 fields with citations and confidence scores.
+  [TEXT_BOX (17)] TextBox 22: ›
+  [TEXT_BOX (17)] TextBox 25: STAGE 4
+  [TEXT_BOX (17)] TextBox 26: Human Review | Non-technical UI: Accept, Reject, or Edit each mapping in seconds, linked to the source.
+  [TEXT_BOX (17)] TextBox 27: ›
+  [TEXT_BOX (17)] TextBox 30: STAGE 5
+  [TEXT_BOX (17)] TextBox 31: Concept Graph | Connect tagged provisions into a weighted, pruned, navigable graph — the core contribution.
+  [TEXT_BOX (17)] TextBox 32: discover  →  describe  (Stages 1–4)        +        connect  (Stage 5)
+  NOTES: Here is the pipeline as a whole. It runs in five stages. The first four stages cover the discover-to-describe arc that the hackathon requires, and the fifth stage adds our distinctive contribution.
+
+In Stage 1, Discovery and Retrieval, a crawler targets national legislation portals, official gazette
+
+--- Slide 6 (layout: Blank) ---
+  [LINE (9)] Connector 17
+  [LINE (9)] Connector 16
+  [LINE (9)] Connector 15
+  [LINE (9)] Connector 14
+  [LINE (9)] Connector 13
+  [LINE (9)] Connector 12
+  [LINE (9)] Connector 11
+  [LINE (9)] Connector 10
+  [TEXT_BOX (17)] TextBox 3: CORE CONTRIBUTION
+  [TEXT_BOX (17)] TextBox 4: Stage 5 — The Concept Graph
+  [TEXT_BOX (17)] TextBox 6: RDTII AutoExtract  ·  UN ESCAP & KMITL Global Hackathon 2026
+  [TEXT_BOX (17)] TextBox 7: 6
+  [TEXT_BOX (17)] TextBox 8: —  Edges weight tag overlap (IDF-weighted) and embedding cosine similarity between provisions. | —  Pseudo-deterministic threshold pruning: edges below a calibrated θ are removed; results reproduce given fixed seeds and 
+  [AUTO_SHAPE (1)] Oval 18: Transfer
+  [AUTO_SHAPE (1)] Oval 19: Consent
+  [AUTO_SHAPE (1)] Oval 20: Localization
+  [AUTO_SHAPE (1)] Oval 21: Breach
+  [AUTO_SHAPE (1)] Oval 22: DPA
+  [AUTO_SHAPE (1)] Oval 23: Adequacy
+  [AUTO_SHAPE (1)] Oval 24: DataFlows
+  NOTES: Stage 5 is what we consider the core architectural contribution of the project, because it goes beyond extraction and turns isolated records into knowledge. After tagging, each article becomes a node. We then draw weighted edges between nodes based on two signals: the overlap of their tags, weighted
+
+--- Slide 7 (layout: Blank) ---
+  [TEXT_BOX (17)] TextBox 3: IMPLEMENTATION
+  [TEXT_BOX (17)] TextBox 4: Technology Stack — Every Layer Behind a Port
+  [TEXT_BOX (17)] TextBox 6: RDTII AutoExtract  ·  UN ESCAP & KMITL Global Hackathon 2026
+  [TEXT_BOX (17)] TextBox 7: 7
+  [TEXT_BOX (17)] TextBox 9: Layer (port)
+  [TEXT_BOX (17)] TextBox 10: Suggested adapter (dev)
+  [TEXT_BOX (17)] TextBox 11: Open-weight target
+  [TEXT_BOX (17)] TextBox 13: LLM  ·  LLMProvider
+  [TEXT_BOX (17)] TextBox 14: Claude / GPT
+  [TEXT_BOX (17)] TextBox 15: Llama 3.1 8B/70B via Ollama
+  [TEXT_BOX (17)] TextBox 17: Captioning  ·  Captioner
+  [TEXT_BOX (17)] TextBox 18: Qwen2-VL / ColQwen2 (Apache)
+  [TEXT_BOX (17)] TextBox 19: Same; OCR-text fallback
+  [TEXT_BOX (17)] TextBox 21: Embeddings  ·  Tagger
+  [TEXT_BOX (17)] TextBox 22: BGE-M3 (multilingual, MIT)
+  [TEXT_BOX (17)] TextBox 23: Same
+  [TEXT_BOX (17)] TextBox 25: OCR  ·  OCREngine
+  [TEXT_BOX (17)] TextBox 26: Tesseract 5 + OpenCV / PaddleOCR
+  [TEXT_BOX (17)] TextBox 27: Same
+  [TEXT_BOX (17)] TextBox 29: Vector store
+  [TEXT_BOX (17)] TextBox 30: pgvector / Chroma (self-hostable)
+  [TEXT_BOX (17)] TextBox 31: Same
+  [TEXT_BOX (17)] TextBox 33: Graph + ranking
+  [TEXT_BOX (17)] TextBox 34: NetworkX (BSD) + FCA concepts (MIT)
+  [TEXT_BOX (17)] TextBox 35: Same
+  [TEXT_BOX (17)] TextBox 37: Backend / Frontend
+  [TEXT_BOX (17)] TextBox 38: FastAPI  ·  React / Next.js
+  [TEXT_BOX (17)] TextBox 39: Same
+  [TEXT_BOX (17)] TextBox 41: Deployment
+  [TEXT_BOX (17)] TextBox 42: Docker + docker-compose
+  [TEXT_BOX (17)] TextBox 43: Same
+  [TEXT_BOX (17)] TextBox 44: All components are Apache-2.0-compatible. Named models are reference suggestions, not commitments.
+  NOTES: This table sets out the technology stack, but the way to read it is important. Each row is a layer that sits behind a port — an interface. The middle column lists the adapter we suggest for development, and the right column lists the open-weight target we resolve to in production. The point is that 
+
+--- Slide 8 (layout: Blank) ---
+  [TEXT_BOX (17)] TextBox 3: EVIDENCE & VIABILITY
+  [TEXT_BOX (17)] TextBox 4: Coverage, Cost, and Sustainability
+  [TEXT_BOX (17)] TextBox 6: RDTII AutoExtract  ·  UN ESCAP & KMITL Global Hackathon 2026
+  [TEXT_BOX (17)] TextBox 7: 8
+  [TEXT_BOX (17)] TextBox 10: COVERAGE
+  [TEXT_BOX (17)] TextBox 11: —  Round 1: evaluated on 5–10 documents from 3 provided countries. | —  At least one non-English jurisdiction handled via the translation pipeline. | —  Finale-ready for 10 assigned countries — no retraining required.
+  [TEXT_BOX (17)] TextBox 14: COST
+  [TEXT_BOX (17)] TextBox 15: —  Open-weight (local Llama 3.1 8B): ≈ USD 0.00 in API fees per 50-page document. | —  Cloud GPU compute: ≈ USD 0.05–0.10 per document at batch rates. | —  API configuration: ≈ USD 0.10–0.25 per document.
+  [TEXT_BOX (17)] TextBox 18: SUSTAINABILITY
+  [TEXT_BOX (17)] TextBox 19: —  Fully self-hostable via Docker on commodity hardware. | —  No proprietary API dependency in production. | —  Modular: OCR, LLM, and vector DB upgrade independently.
+  NOTES: Beyond the design, the project must be credible in practice, so this slide addresses coverage, cost, and sustainability. On coverage, in Round 1 the tool will be evaluated against five to ten documents from three provided countries, including at least one non-English jurisdiction handled by our tran
+
+--- Slide 9 (layout: Blank) ---
+  [TEXT_BOX (17)] TextBox 3: THE PLAN
+  [TEXT_BOX (17)] TextBox 4: Key Milestones
+  [TEXT_BOX (17)] TextBox 6: RDTII AutoExtract  ·  UN ESCAP & KMITL Global Hackathon 2026
+  [TEXT_BOX (17)] TextBox 7: 9
+  [TEXT_BOX (17)] TextBox 10: 25 May 2026
+  [TEXT_BOX (17)] TextBox 11: Application submitted — CVs, Concept Video, Technical Memo, Declaration
+  [TEXT_BOX (17)] TextBox 13: 31 May 2026
+  [TEXT_BOX (17)] TextBox 14: Shortlist announcement
+  [TEXT_BOX (17)] TextBox 16: 5–10 Jun 2026
+  [TEXT_BOX (17)] TextBox 17: ESCAP & KMITL training workshops
+  [TEXT_BOX (17)] TextBox 19: 20 Jul 2026
+  [TEXT_BOX (17)] TextBox 20: Round 1 submission — tool evaluated on 3 provided countries
+  [TEXT_BOX (17)] TextBox 22: 31 Jul 2026
+  [TEXT_BOX (17)] TextBox 23: Hybrid pitch
+  [TEXT_BOX (17)] TextBox 25: 30 Sep 2026
+  [TEXT_BOX (17)] TextBox 26: Final submission
+  [TEXT_BOX (17)] TextBox 28: 15 Oct 2026
+  [TEXT_BOX (17)] TextBox 29: Award ceremony, Bangkok
+  NOTES: This slide lays out the timeline through to the award ceremony. The immediate milestone is the application submission on the twenty-fifth of May 2026, which comprises our CVs, the concept video, the Technical Memo, and the signed declaration. The shortlist is announced at the end of May, followed by
+
+--- Slide 10 (layout: Blank) ---
+  [TEXT_BOX (17)] TextBox 3: IN SUMMARY
+  [TEXT_BOX (17)] TextBox 4: A Deployable Pipeline That Did Not Exist Before
+  [TEXT_BOX (17)] TextBox 5: —  Automates ~80% of the RDTII discover → describe workflow for Pillars 6 and 7. | —  Model-agnostic by design — open-weight, self-hostable, Apache 2.0. | —  Article-level extraction with all 6 fields, traceable citation
+  [TEXT_BOX (17)] TextBox 7: Thank you.   ·   Repository to be published under Apache 2.0   ·   escap-digitaltrade-hackathon@un.org
+  NOTES: In closing, let me restate why we believe this project matters. The primary contribution is not a novel model architecture; it is a complete, deployable, end-to-end pipeline that is purpose-built for the RDTII legal extraction task and that does not currently exist in open-source form.
+
+To summarise
+
