@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import "./globals.css";
-import "./review.css";
+import "@/styles/globals.css";
+import "@/styles/review.css";
 
 export const metadata: Metadata = {
   title: "RDTII AutoExtract — Review Console",

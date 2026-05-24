@@ -1,9 +1,6 @@
 "use client";
 
-import type { Pillar, ReviewStatus } from "@/lib/types";
-
-export type StatusFilter = ReviewStatus | "all";
-export type PillarFilter = Pillar | "all";
+import type { PillarFilter, StatusFilter } from "./filters";
 
 interface Props {
   query: string;

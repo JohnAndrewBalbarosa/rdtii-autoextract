@@ -6,6 +6,9 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 HERE = Path(__file__).parent
 OUT = HERE / "TECHNICAL_MEMO.docx"
+import sys
+if len(sys.argv) > 1: OUT = HERE / sys.argv[1]
+PIPELINE_PNG = HERE / "pipeline.png"
 
 doc = Document()
 
@@ -78,7 +81,7 @@ tr.font.size = Pt(16)
 
 sub = doc.add_paragraph()
 sr = sub.add_run(
-    "Global Hackathon on AI for Digital Trade Regulatory Analysis "
+    "Team Arkova · Global Hackathon on AI for Digital Trade Regulatory Analysis "
     "(UN ESCAP & KMITL, 2026). Apache 2.0."
 )
 sr.italic = True
@@ -103,16 +106,22 @@ add_para([
 
 # ---------- Pipeline ----------
 add_heading("Pipeline", size=12)
-pipeline = (
-    "┌──────────┐   ┌───────────────────────┐   ┌──────────────┐   ┌──────────────┐   ┌───────────────────┐\n"
-    "│ 1 DISCOVER│──▶│ 2 OCR + SigLIP CAPTION │──▶│ 3 TAG+EXTRACT │──▶│ 4 HUMAN REVIEW│──▶│ 5 CONCEPT GRAPH    │\n"
-    "│ crawl,    │   │ <5% CER; caption =     │   │ multi-label   │   │ accept/reject │   │ weighted edges →   │\n"
-    "│ anti-bot, │   │ BASIS for tags; VLM    │   │ + 6 fields +  │   │ /edit; audit  │   │ prune(θ) →         │\n"
-    "│ provenance│   │ on scanned/non-EN docs │   │ indicator map │   │ view, export  │   │ community → FCA+PR │\n"
-    "└──────────┘   └───────────────────────┘   └──────────────┘   └──────────────┘   └───────────────────┘\n"
-    "   DocumentSource      OCREngine/Captioner       Tagger/LLM         FindingRepo      GraphBuilder/Ranker"
-)
-add_mono(pipeline, size=7)
+if PIPELINE_PNG.exists():
+    pic_p = doc.add_paragraph()
+    pic_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    pic_p.paragraph_format.space_before = Pt(2)
+    pic_p.paragraph_format.space_after = Pt(2)
+    pic_p.add_run().add_picture(str(PIPELINE_PNG), width=Cm(17.0))
+    cap = doc.add_paragraph()
+    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cr = cap.add_run(
+        "Stages 1–5 with the ports they bind to (dashed). Adapters are config-selected; "
+        "the core domain depends on the ports only."
+    )
+    cr.italic = True
+    cr.font.size = Pt(8)
+else:
+    add_mono("[pipeline.png missing — run mermaid render]", size=8)
 
 add_para([
     ("6 mandatory fields / article: ", True),

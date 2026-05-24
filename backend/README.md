@@ -1,7 +1,7 @@
 # RDTII Engine — Backend
 
-Framework-agnostic core + FastAPI reference adapter for the **Global Hackathon on AI for
-Digital Trade Regulatory Analysis** (UN ESCAP & KMITL, 2026). Apache 2.0.
+Framework-agnostic core + FastAPI reference adapter by **Team Arkova** for the **Global
+Hackathon on AI for Digital Trade Regulatory Analysis** (UN ESCAP & KMITL, 2026). Apache 2.0.
 
 Automates ~80% of the RDTII workflow — **discover → retrieve → OCR → chunk → extract →
 map → review** — for **Pillar 6 (Cross-border Data Flows)** and **Pillar 7 (Domestic Data

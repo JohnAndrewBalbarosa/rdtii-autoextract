@@ -1,4 +1,4 @@
-import type { Finding } from "@/lib/types";
+import type { Finding } from "@/domain/finding";
 
 export function SummaryStats({ findings }: { findings: Finding[] }) {
   const total = findings.length;

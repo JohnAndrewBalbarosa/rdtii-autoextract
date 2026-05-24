@@ -4,8 +4,8 @@
 > regulatory workflow — **discover → describe** — across Asia-Pacific jurisdictions, leaving
 > the final ~20% for transparent human review.
 >
-> Built for the **Global Hackathon on AI for Digital Trade Regulatory Analysis**
-> (UN ESCAP & KMITL, 2026). Licensed under **Apache 2.0**.
+> Built by **Team Arkova** for the **Global Hackathon on AI for Digital Trade
+> Regulatory Analysis** (UN ESCAP & KMITL, 2026). Licensed under **Apache 2.0**.
 
 Mandatory scope: **Pillar 6 (Cross-border Data Flows)** + **Pillar 7 (Domestic Data
 Protection)**, at article-level granularity with the 6 mandatory fields.

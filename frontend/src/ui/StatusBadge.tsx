@@ -1,4 +1,4 @@
-import type { ReviewStatus } from "@/lib/types";
+import type { ReviewStatus } from "@/domain/finding";
 
 const LABEL: Record<ReviewStatus, string> = {
   pending: "Pending review",

@@ -1,0 +1,31 @@
+flowchart LR
+    A["<b>1 DISCOVER</b><br/>crawl · anti-bot<br/>provenance"]
+    B["<b>2 OCR + CAPTION</b><br/>&lt;5% CER<br/>caption = basis for tags<br/>VLM on scanned / non-EN"]
+    C["<b>3 TAG + EXTRACT</b><br/>multi-label<br/>6 mandatory fields<br/>indicator map"]
+    D["<b>4 HUMAN REVIEW</b><br/>accept · reject · edit<br/>audit view · export"]
+    E["<b>5 CONCEPT GRAPH</b><br/>weighted edges → prune(θ)<br/>community → FCA + PageRank"]
+
+    A --> B --> C --> D --> E
+
+    A:::stage
+    B:::stage
+    C:::stage
+    D:::review
+    E:::concept
+
+    p1["DocumentSource"]:::port
+    p2["OCREngine / Captioner"]:::port
+    p3["Tagger / LLMProvider"]:::port
+    p4["FindingRepository"]:::port
+    p5["GraphBuilder / GraphRanker"]:::port
+
+    A -.-> p1
+    B -.-> p2
+    C -.-> p3
+    D -.-> p4
+    E -.-> p5
+
+    classDef stage fill:#e8f0fe,stroke:#1a73e8,stroke-width:1.5px,color:#0b3d91,rx:6,ry:6;
+    classDef review fill:#fff4e5,stroke:#e8710a,stroke-width:1.5px,color:#7a3e00,rx:6,ry:6;
+    classDef concept fill:#e6f4ea,stroke:#137333,stroke-width:1.5px,color:#0d652d,rx:6,ry:6;
+    classDef port fill:#f5f5f5,stroke:#9aa0a6,stroke-dasharray:3 3,color:#3c4043,font-style:italic,rx:4,ry:4;

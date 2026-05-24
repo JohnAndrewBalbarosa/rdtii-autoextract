@@ -1,7 +1,10 @@
-import { ReviewConsole } from "@/components/ReviewConsole";
-import { MOCK_FINDINGS } from "@/lib/mock-data";
+// Route entry. Thin shell — all UI logic lives in src/features/review.
+// Server-fetches the initial findings via the repository port so the page is SSR-friendly.
 
-export default function Home() {
-  // Server-rendered shell; findings are mock until the backend pipeline is wired.
-  return <ReviewConsole initialFindings={MOCK_FINDINGS} />;
+import { ReviewConsole } from "@/features/review/ReviewConsole";
+import { getFindingsRepository } from "@/data";
+
+export default async function Home() {
+  const initialFindings = await getFindingsRepository().list();
+  return <ReviewConsole initialFindings={initialFindings} />;
 }

@@ -1,6 +1,6 @@
 # Technical Memo — RDTII AutoExtract
 
-*Global Hackathon on AI for Digital Trade Regulatory Analysis (UN ESCAP & KMITL, 2026). Apache 2.0.*
+*Team **Arkova** · Global Hackathon on AI for Digital Trade Regulatory Analysis (UN ESCAP & KMITL, 2026). Apache 2.0.*
 *Companion deck covers walkthrough; this memo = 2-page technical summary.*
 
 **Problem.** Automate ~80% of the RDTII workflow (discover → describe) for **Pillar 6 (Cross-border
@@ -9,23 +9,22 @@ transparent 20% human-review step. **Model-agnostic by design** — every model 
 
 ## Pipeline
 
-```
-┌──────────┐   ┌───────────────────────┐   ┌──────────────┐   ┌──────────────┐   ┌───────────────────┐
-│ 1 DISCOVER│──▶│ 2 OCR + SigLIP CAPTION │──▶│ 3 TAG+EXTRACT │──▶│ 4 HUMAN REVIEW│──▶│ 5 CONCEPT GRAPH    │
-│ crawl,    │   │ <5% CER; caption =     │   │ multi-label   │   │ accept/reject │   │ weighted edges →   │
-│ anti-bot, │   │ BASIS for tags; VLM    │   │ + 6 fields +  │   │ /edit; audit  │   │ prune(θ) →         │
-│ provenance│   │ on scanned/non-EN docs │   │ indicator map │   │ view, export  │   │ community → FCA+PR │
-└──────────┘   └───────────────────────┘   └──────────────┘   └──────────────┘   └───────────────────┘
-   DocumentSource      OCREngine/Captioner       Tagger/LLM         FindingRepo      GraphBuilder/Ranker
-```
+![Pipeline](pipeline.png)
+
+*Stages 1–5 with the ports they bind to (dashed). Adapters are config-selected; the core domain depends on the ports only. Source: `pipeline.mmd` (Mermaid).*
 
 **6 mandatory fields / article:** `title · last_update · url · scope · provisions · impact`
 (+ pillar, indicator, confidence, review_status). Document-level summaries rejected.
 
-**Stage 5 (core contribution):** tagged sections = nodes; edges = IDF-weighted tag overlap +
-embedding cosine; pruned at calibrated **θ** (fixed seeds + θ ⇒ reproducible). Community detection
-+ **Formal Concept Analysis** lattice + weighted **PageRank** → navigable entry-point → sub-topic
-hierarchy for cross-jurisdiction evidence discovery.
+**Stage 5 (core contribution).** Tagged nodes seed **two parallel artifacts**:
+(a) a **concept graph** — start from the complete pairwise graph, then *subtract* edges
+where `w = α·IDF-Jaccard(tags) + (1−α)·cosine(emb)` falls below a **calibrated θ**
+(fixed seeds + θ ⇒ reproducible). Community detection (Louvain) + weighted **PageRank** rank
+influence within the surviving web. (b) a **generality tree** via **Formal Concept Analysis**
+on the node×tag matrix (algebraic taxonomy induction — alternative to hLDA, chosen for
+determinism + audit). Lattice depth = specificity (more tags ⇒ fewer matching sections ⇒
+deeper). Together: an entry-point category opens into PageRank-ranked subcategories — the
+navigable cross-jurisdiction evidence layer.
 
 ## Architecture — ports & adapters
 

@@ -1,11 +1,12 @@
-// Frontend contract — mirrors backend core/domain/entities.py (Finding).
-// Kept in sync manually until the backend OpenAPI client is generated.
+// Domain layer — pure types, no framework, no React, no I/O.
+// Mirrors backend core/domain/entities.py (Finding). Kept in sync manually
+// until an OpenAPI client is generated from the backend schema.
 
 export type Pillar = 6 | 7;
 
 export type ReviewStatus = "pending" | "verified" | "rejected";
 
-/** An article-level finding mapped to an RDTII indicator (the 6 mandatory fields + metadata). */
+/** An article-level finding mapped to an RDTII indicator (6 mandatory fields + metadata). */
 export interface Finding {
   id: string;
   // --- 6 mandatory fields ---
