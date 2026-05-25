@@ -1,4 +1,5 @@
-import { PILLAR_LABEL, type Pillar } from "@/lib/types";
+// Presentational primitive. Knows about the Pillar enum, nothing about findings or filters.
+import { PILLAR_LABEL, type Pillar } from "@/domain/finding";
 
 export function PillarTag({ pillar }: { pillar: Pillar }) {
   return (

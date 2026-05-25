@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { Finding, ReviewStatus } from "@/lib/types";
-import { PillarTag } from "./PillarTag";
-import { StatusBadge } from "./StatusBadge";
-import { ConfidenceMeter } from "./ConfidenceMeter";
+import type { Finding, ReviewStatus } from "@/domain/finding";
+import { PillarTag } from "@/ui/PillarTag";
+import { StatusBadge } from "@/ui/StatusBadge";
+import { ConfidenceMeter } from "@/ui/ConfidenceMeter";
 
 interface Props {
   finding: Finding;

@@ -1,9 +1,10 @@
-import type { Finding } from "./types";
+// Mock adapter for FindingsRepository. Used until the backend pipeline is wired.
+// Replace with findings.api.ts (REST) by switching the selector in src/data/index.ts.
 
-// Placeholder findings across Asia-Pacific jurisdictions for Pillars 6 & 7.
-// Stands in for the backend until the extraction pipeline is wired. Illustrative only.
+import type { Finding, ReviewStatus } from "@/domain/finding";
+import type { FindingsRepository } from "./findings.repository";
 
-export const MOCK_FINDINGS: Finding[] = [
+const SEED: Finding[] = [
   {
     id: "sg-pdpa-26",
     title: "Transfer Limitation Obligation",
@@ -102,3 +103,16 @@ export const MOCK_FINDINGS: Finding[] = [
     language: "en",
   },
 ];
+
+export function createMockRepository(): FindingsRepository {
+  const store: Finding[] = SEED.map((f) => ({ ...f }));
+  return {
+    async list() {
+      return store.map((f) => ({ ...f }));
+    },
+    async setReviewStatus(id: string, status: ReviewStatus) {
+      const i = store.findIndex((f) => f.id === id);
+      if (i >= 0) store[i] = { ...store[i], reviewStatus: status };
+    },
+  };
+}

@@ -67,9 +67,15 @@ and are derived from **text + caption** together.
   scoring of the caption against tag/indicator label descriptions (SigLIP-style multi-label).
   Verify with `bge-reranker-v2-m3` (Apache) or an LLM (R14). Few-shot tune with `SetFit` (Apache).
 
-### Stage 2 — Complete graph + edge weighting
+### Stage 2 — Complete graph + edge weighting (subtractive, not additive)
 
-Once all nodes exist, score every relevant pair. Edge weight blends two signals:
+Conceptually start from a **complete graph** — every node potentially connected to every
+other node — then **remove** edges that fail the threshold. The threshold is the **eraser,
+not the glue**: edges below `θ` are dropped because they are not worth keeping, not because
+we never built them. (In practice we never materialise the full N² edges — ANN top-K
+candidates approximate the complete graph cheaply — but the *semantics* is subtractive.)
+
+Once the candidate pairs exist, score them. Edge weight blends two signals:
 
 ```
 w(a, b) = α · tag_overlap(a, b) + (1 − α) · cosine(emb_a, emb_b)
@@ -106,7 +112,23 @@ Cluster the pruned graph into themes (the Obsidian-style groupings).
 
 ### Stage 5 — Hierarchy induction (FCA) + PageRank ranking
 
-Two complementary passes turn the flat clustered web into a navigable tree.
+> **Important shape note.** The hierarchy in 5a is *not* derived from the pruned graph edges.
+> It is a **parallel derivation** from the same `ConceptNode[]`, using only the node × tag
+> matrix. Concretely: the graph (Stages 2–4) and the lattice (Stage 5a) are two
+> independent artifacts built from one shared seed of tagged nodes. Tweaking `θ` changes
+> communities and PageRank scores; it does **not** change the lattice shape.
+>
+> ```
+>                    ConceptNode[]  (the shared seed)
+>                           │
+>          ┌────────────────┴───────────────┐
+>          ▼ (edges → prune θ)              ▼ (node × tag matrix)
+>     ConceptGraph                     ConceptLattice
+>     + Community[]                    (FCA generality tree)
+>     + PageRank scores
+> ```
+
+Two complementary passes turn flat tagged nodes into a navigable tree.
 
 1. **Generality hierarchy via FCA concept lattice.** Build (extent, intent) concepts from
    the node×tag matrix. The lattice orders concepts from general (many examples, few tags →
