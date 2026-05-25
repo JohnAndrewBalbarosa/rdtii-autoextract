@@ -37,7 +37,7 @@ export function ReviewConsole({ initialFindings }: { initialFindings: Finding[] 
   return (
     <main className="console">
       <header className="masthead">
-        <p className="masthead__kicker">UN ESCAP · RDTII AutoExtract</p>
+        <p className="masthead__kicker">UN ESCAP · Zetarix</p>
         <h1 className="masthead__title">Regulatory Findings Review</h1>
         <p className="masthead__lede">
           Article-level findings for <strong>Pillar 6 (Cross-border Data Flows)</strong> and{" "}

@@ -1,6 +1,7 @@
-# RDTII AutoExtract
+# Zetarix
 
-> Open-source AI pipeline that automates ~80% of the UN ESCAP **RDTII** digital-trade
+> Open-source AI pipeline that automates ~80% of the UN ESCAP **RDTII** (Regional Digital
+> Trade Integration Index) digital-trade
 > regulatory workflow — **discover → describe** — across Asia-Pacific jurisdictions, leaving
 > the final ~20% for transparent human review.
 >

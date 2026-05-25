@@ -7,8 +7,9 @@
 
 ## 1. Project Title
 
-**RDTII AutoExtract** — An Open-Source AI Pipeline for Automated Digital Trade Regulatory
-Analysis Across Asia-Pacific Jurisdictions.
+**Zetarix** — An Open-Source AI Pipeline for Automated Digital Trade Regulatory
+Analysis Across Asia-Pacific Jurisdictions (for the UN ESCAP RDTII — Regional Digital
+Trade Integration Index).
 
 ---
 

@@ -1,4 +1,4 @@
-# Technical Memo — RDTII AutoExtract
+# Technical Memo — Zetarix
 
 *Global Hackathon on AI for Digital Trade Regulatory Analysis (UN ESCAP & KMITL, 2026). Apache 2.0.*
 *≤ 2 pages; diagrams count. Cost figures are preliminary estimates, to be finalized after empirical testing.*

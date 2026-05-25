@@ -1,4 +1,4 @@
-"""Generate a formal RDTII AutoExtract presentation (PPTX) with speaker notes.
+"""Generate a formal Zetarix presentation (PPTX) with speaker notes.
 
 Run: python docs/build_deck.py
 Output: docs/RDTII_AutoExtract.pptx
@@ -125,7 +125,7 @@ def header(slide, kicker, title, n):
 
 def footer(slide, n):
     tb, tf = textbox(slide, Inches(0.7), Inches(7.05), Inches(8), Inches(0.3))
-    setpara(tf.paragraphs[0], "RDTII AutoExtract  ·  UN ESCAP & KMITL Global Hackathon 2026",
+    setpara(tf.paragraphs[0], "Zetarix  ·  UN ESCAP & KMITL Global Hackathon 2026",
             9, MUTED, font=FONT_BODY, space_after=0)
     tb, tf = textbox(slide, Inches(12.0), Inches(7.05), Inches(0.9), Inches(0.3))
     setpara(tf.paragraphs[0], str(n), 9, MUTED, font=FONT_BODY, align=PP_ALIGN.RIGHT,
@@ -163,12 +163,15 @@ setpara(tf.paragraphs[0],
         13, RGBColor(0x9F, 0xC4, 0xE6), bold=True, font=FONT_BODY, space_after=0)
 # title
 tb, tf = textbox(s, Inches(0.9), Inches(2.3), Inches(11.6), Inches(2.0))
-setpara(tf.paragraphs[0], "RDTII AutoExtract", 60, WHITE, bold=True, font=FONT_HEAD,
+setpara(tf.paragraphs[0], "Zetarix", 60, WHITE, bold=True, font=FONT_HEAD,
         space_after=6)
 p = tf.add_paragraph()
 setpara(p, "An Open-Source, Model-Agnostic AI Pipeline for Automated Digital Trade "
            "Regulatory Analysis Across Asia-Pacific Jurisdictions",
-        20, RGBColor(0xD7, 0xE4, 0xF1), font=FONT_BODY, space_after=0)
+        20, RGBColor(0xD7, 0xE4, 0xF1), font=FONT_BODY, space_after=6)
+p = tf.add_paragraph()
+setpara(p, "RDTII  —  Regional Digital Trade Integration Index (UN ESCAP)",
+        15, RGBColor(0x9F, 0xC4, 0xE6), bold=True, font=FONT_BODY, space_after=0)
 # rule
 rect(s, Inches(0.9), Inches(4.75), Inches(6), Pt(2), ACCENT)
 # subline
@@ -184,7 +187,7 @@ setpara(tf.paragraphs[0], "Licensed under Apache 2.0", 13, RGBColor(0x9F, 0xC4, 
 
 notes(s,
 "Good day, and thank you for the opportunity to present. This presentation introduces "
-"RDTII AutoExtract, an open-source, model-agnostic artificial intelligence pipeline that we "
+"Zetarix, an open-source, model-agnostic artificial intelligence pipeline that we "
 "have developed for the Global Hackathon on AI for Digital Trade Regulatory Analysis, "
 "jointly organised by UN ESCAP and KMITL.\n\n"
 "The central objective of the project is to automate approximately eighty percent of the "
@@ -410,9 +413,9 @@ bullet(tf, "Result: broad entry-point categories → ranked specific sub-topics 
            "navigable map of related provisions.", size=15, bold=True, space_after=0,
        marker_color=ACCENT_2)
 
-# right: simple node-graph illustration
+# right: simple node-graph illustration (upper) + formal model panel (lower)
 gx, gy = Inches(7.5), Inches(2.1)
-gw, gh = Inches(5.1), Inches(4.2)
+gw, gh = Inches(5.1), Inches(2.95)
 rect(s, gx, gy, gw, gh, LIGHT)
 import math
 cx, cy = gx + gw/2, gy + gh/2
@@ -441,7 +444,7 @@ satellites = []
 for k in range(6):
     ang = math.radians(60 * k - 90)
     sxc = cx + math.cos(ang) * Inches(1.55)
-    syc = cy + math.sin(ang) * Inches(1.35)
+    syc = cy + math.sin(ang) * Inches(0.92)
     satellites.append((sxc, syc))
 center = (cx, cy)
 for sat in satellites:
@@ -452,8 +455,37 @@ edge(satellites[3], satellites[4])
 labels = ["Transfer", "Consent", "Localization", "Breach", "DPA", "Adequacy"]
 cols = [ACCENT_2, ACCENT_2, ACCENT, ACCENT, ACCENT_2, ACCENT]
 for (sxc, syc), lb, c in zip(satellites, labels, cols):
-    node(sxc, syc, Inches(0.5), c, lb, fs=9)
-node(cx, cy, Inches(0.7), NAVY, "Data\nFlows", fs=11)
+    node(sxc, syc, Inches(0.44), c, lb, fs=9)
+node(cx, cy, Inches(0.58), NAVY, "Data\nFlows", fs=11)
+
+# --- Formal model panel: the equations behind the graph ---
+ex, ey = Inches(7.5), Inches(5.25)
+ew, eh = Inches(5.1), Inches(1.7)
+panel = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, ex, ey, ew, eh)
+panel.fill.solid(); panel.fill.fore_color.rgb = NAVY
+panel.line.fill.background(); panel.shadow.inherit = False
+etb, etf = textbox(s, ex + Inches(0.25), ey + Inches(0.12), ew - Inches(0.5), eh - Inches(0.24))
+setpara(etf.paragraphs[0], "FORMAL MODEL", 11, RGBColor(0x9F, 0xC4, 0xE6),
+        bold=True, font=FONT_BODY, space_after=8)
+eqs = [
+    ("Edge weight", "w(i, j) = α · tag(i, j) + β · cos(i, j)"),
+    ("Pruning", "keep (i, j)  ⟺  w(i, j) ≥ θ"),
+    ("Ranking", "PR = d · Mᵀ·PR + (1 − d) / N"),
+]
+for name, formula in eqs:
+    p = etf.add_paragraph()
+    r1 = p.add_run(); r1.text = name + ":  "
+    r1.font.size = Pt(11); r1.font.bold = True
+    r1.font.name = FONT_BODY; r1.font.color.rgb = RGBColor(0xD7, 0xE4, 0xF1)
+    r2 = p.add_run(); r2.text = formula
+    r2.font.size = Pt(12.5); r2.font.bold = False
+    r2.font.name = "Cambria Math"; r2.font.color.rgb = WHITE
+    p.space_after = Pt(3)
+# legend for the symbols
+lp = etf.add_paragraph()
+setpara(lp, "tag = IDF-weighted tag overlap · cos = embedding cosine similarity · "
+            "θ = pruning threshold · M = adjacency matrix",
+        9, RGBColor(0x9F, 0xC4, 0xE6), italic=True, font=FONT_BODY, space_after=0)
 
 notes(s,
 "Stage 5 is what we consider the core architectural contribution of the project, because it "
