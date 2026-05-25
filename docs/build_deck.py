@@ -301,9 +301,11 @@ bullet(tf, "Built on ports & adapters (hexagonal) architecture.", size=16, bold=
        first=True, space_after=12)
 bullet(tf, "The core domain depends only on interfaces — never on a concrete model.",
        size=15, space_after=12)
-bullet(tf, "Every AI model (LLM, OCR, captioner, embeddings, graph) is a swappable "
-           "suggestion, changed via config — no domain edits.", size=15, space_after=12)
-bullet(tf, "Development can use a paid API; production resolves to open-weight "
+bullet(tf, "Every AI model — large language model (LLM), optical character recognition "
+           "(OCR), captioner, embeddings, graph — is a swappable suggestion, changed via "
+           "config, no domain edits.", size=15, space_after=12)
+bullet(tf, "Development can use a paid application programming interface (API); "
+           "production resolves to open-weight "
            "(Llama 3.1 via Ollama) with a single config change.", size=15, space_after=12,
        marker_color=ACCENT_2)
 bullet(tf, "Swappability is explicitly scored: 20 points in Stage 1 plus 20 points in "
@@ -348,9 +350,9 @@ header(s, "How It Works", "The Five-Stage Pipeline", 5)
 
 stages = [
     ("1", "Discovery & Retrieval", "Crawl national portals, gazettes, and ministry sites; capture full provenance per document.", ACCENT),
-    ("2", "OCR & Captioning", "Convert any format to clean text at <5% CER; SigLIP-style captions become the basis for tags.", ACCENT),
-    ("3", "Tagging & Extraction", "Multi-label tag each article; RAG extracts all 6 fields with citations and confidence scores.", ACCENT),
-    ("4", "Human Review", "Non-technical UI: Accept, Reject, or Edit each mapping in seconds, linked to the source.", ACCENT_2),
+    ("2", "OCR & Captioning", "Convert any format to clean text at <5% character error rate (CER); SigLIP-style captions become the basis for tags.", ACCENT),
+    ("3", "Tagging & Extraction", "Multi-label tag each article; retrieval-augmented generation (RAG) extracts all 6 fields with citations and confidence scores.", ACCENT),
+    ("4", "Human Review", "Non-technical user interface (UI): Accept, Reject, or Edit each mapping in seconds, linked to the source.", ACCENT_2),
     ("5", "Concept Graph", "Connect tagged provisions into a weighted, pruned, navigable graph — the core contribution.", ACCENT_2),
 ]
 x0, y = Inches(0.7), Inches(2.3)
@@ -400,13 +402,13 @@ rect(s, 0, 0, SW, SH, WHITE)
 header(s, "Core Contribution", "Stage 5 — The Concept Graph", 6)
 
 tb, tf = textbox(s, Inches(0.7), Inches(1.95), Inches(6.4), Inches(4.6))
-bullet(tf, "Edges weight tag overlap (IDF-weighted) and embedding cosine similarity "
-           "between provisions.", size=15, first=True, space_after=12)
+bullet(tf, "Edges weight tag overlap (inverse document frequency, IDF–weighted) and "
+           "embedding cosine similarity between provisions.", size=15, first=True, space_after=12)
 bullet(tf, "Pseudo-deterministic threshold pruning: edges below a calibrated θ are "
            "removed; results reproduce given fixed seeds and θ.", size=15, space_after=12)
 bullet(tf, "Community detection (NetworkX / Louvain — BSD) produces Obsidian-style "
            "topical groupings.", size=15, space_after=12)
-bullet(tf, "Formal Concept Analysis builds a generality hierarchy; weighted PageRank "
+bullet(tf, "Formal Concept Analysis (FCA) builds a generality hierarchy; weighted PageRank "
            "ranks entry points and orders within levels.", size=15, space_after=12,
        marker_color=ACCENT_2)
 bullet(tf, "Result: broad entry-point categories → ranked specific sub-topics — a "
@@ -576,7 +578,7 @@ cards = [
     ]),
     ("Cost", ACCENT_2, [
         "Open-weight (local Llama 3.1 8B): ≈ USD 0.00 in API fees per 50-page document.",
-        "Cloud GPU compute: ≈ USD 0.05–0.10 per document at batch rates.",
+        "Cloud graphics processing unit (GPU) compute: ≈ USD 0.05–0.10 per document at batch rates.",
         "API configuration: ≈ USD 0.10–0.25 per document.",
     ]),
     ("Sustainability", NAVY, [
