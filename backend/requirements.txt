@@ -1,3 +1,12 @@
 fastapi>=0.110
 uvicorn[standard]>=0.29
 pydantic>=2.6
+
+# Concept-graph pipeline (deterministic stages) — all Apache/BSD/MIT compatible.
+networkx>=3.2          # BSD — graph assembly, PageRank
+scipy>=1.11            # BSD — backs networkx.pagerank
+python-louvain>=0.16   # BSD — Louvain community detection (NOT GPL leidenalg)
+concepts>=0.9          # MIT — Formal Concept Analysis (cluster -> tree)
+
+# Dev/test
+pytest>=8.0
