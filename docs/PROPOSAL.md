@@ -60,7 +60,7 @@ jurisdictions, including documents not currently in the ESCAP database.
 **Components:**
 - Web crawler targeting national legislation portals, official gazette archives, ministry
   websites, and legal databases _(suggested: Playwright + BeautifulSoup)_
-- Anti-bot handling: rate-limiting, rotating user-agents, fallback to web archive sources
+- Messy portal handling: rate-limiting, rotating user-agents, fallback to web archive sources
 - Language detection routing non-English documents to the translation step
 - Provenance metadata per document: URL, retrieval timestamp, country, language, source portal
 
@@ -176,7 +176,7 @@ taxonomy from the Resource Library.
 
 **Finale readiness:** Architecture designed to handle 10 assigned countries with no
 retraining. Non-English documents handled via the translation pipeline. Scanned PDFs with
-<5% CER handled via the OCR pipeline. Anti-bot portals handled via Playwright with fallback
+<5% CER handled via the OCR pipeline. Messy portals handled via Playwright with fallback
 strategies. Minimum delivery target: 3 countries under live stress test conditions.
 
 ---

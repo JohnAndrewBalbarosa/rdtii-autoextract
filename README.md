@@ -44,6 +44,7 @@ contribution. See [backend/docs/GRAPH_PIPELINE.md](backend/docs/GRAPH_PIPELINE.m
 ## Key documents
 
 - [docs/PROPOSAL.md](docs/PROPOSAL.md) — full project proposal
+- [docs/COMPLIANT_AUTOMATION_GUIDE.md](docs/COMPLIANT_AUTOMATION_GUIDE.md) — compliance-first automation, OSI-style observability, and AI coding guidelines
 - [backend/docs/ARCHITECTURE.md](backend/docs/ARCHITECTURE.md) — ports & adapters design
 - [backend/docs/REQUIREMENTS.md](backend/docs/REQUIREMENTS.md) — requirements traced from the Q&A
 - [backend/docs/GRAPH_PIPELINE.md](backend/docs/GRAPH_PIPELINE.md) — concept-graph model
