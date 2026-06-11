@@ -57,7 +57,7 @@ Open-weight basis: A10G-class GPU at batch rates. Final CER / latency / cost rep
 ## Generalisation, fine-tuning, originality
 
 - **Generalisation:** no per-country retraining; non-English via captioning + translation;
-  scanned PDFs via OCR (<5% CER); anti-bot portals via headless browser + archive fallback.
+  scanned PDFs via OCR (<5% CER); compliant access handling on messy portals via headless browser + approved archive fallback.
   Target ≥3 of 10 assigned countries at finale.
 - **Fine-tuning *(planned)*:** few-shot tune small encoder/classifier for Pillar 6/7 sub-indicators
   using RDTII taxonomy; θ calibrated F1-optimal on RDTII labelled data. Weights published in repo.

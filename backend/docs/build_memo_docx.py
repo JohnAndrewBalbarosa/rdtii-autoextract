@@ -206,7 +206,7 @@ add_heading("Generalisation, fine-tuning, originality", size=12)
 add_bullet([
     ("Generalisation: ", True),
     ("no per-country retraining; non-English via captioning + translation; scanned PDFs via OCR "
-     "(<5% CER); anti-bot portals via headless browser + archive fallback. Target ≥3 of 10 "
+     "(<5% CER); messy portals via headless browser + archive fallback. Target ≥3 of 10 "
      "assigned countries at finale.", False),
 ])
 add_bullet([

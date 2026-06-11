@@ -38,7 +38,7 @@ This directly serves R12 (swappability, 40 pts across stages) and R16 (modular, 
 
 ```text
 DocumentSource.discover(jurisdiction, pillars) -> [DocRef]      # R8, R19, R20
-DocumentSource.fetch(DocRef)                    -> RawDocument   # handles anti-bot/PDF
+DocumentSource.fetch(DocRef)                    -> RawDocument   # handles compliant access / PDF
 OCREngine.extract(RawDocument)                  -> Text(cer<0.05)# R17
 Chunker.byArticle(Text)                         -> [ArticleChunk]# R4
 VectorStore.upsert/search(...)                  -> [ArticleChunk]# R14 (RAG)
@@ -70,7 +70,7 @@ framework needed. The final **review** stage produces the human-facing queue (th
 | LLM | Claude / GPT API | **Llama 3** (Apache-compatible), optionally fine-tuned (weights in repo) |
 | OCR | pluggable | Tesseract / PaddleOCR / docTR — measured against <5% CER |
 | Vectors | pgvector | Qdrant / Chroma / FAISS |
-| Crawl | HTTP client | headless browser for anti-bot / JS portals |
+| Crawl | HTTP client | headless browser for compliant access handling / JS portals |
 
 ## Deployment (R15, R16)
 

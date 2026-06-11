@@ -134,7 +134,7 @@ NOTES = [
 
     # Slide 5 — 1:25-2:35  (~155 words)  ←  Automated discovery + start of mapping
     "[1:25–2:35] The pipeline runs in five stages. Stages one and two handle "
-    "automated discovery of legal documents. A crawler — Playwright with anti-bot "
+    "automated discovery of legal documents. A crawler — Playwright with compliant access "
     "handling and archive fallback — locates regulations on national portals, gazettes, "
     "and ministry sites, recording full provenance per document. Then OCR converts every "
     "format to clean text at under five percent character error rate, and a "

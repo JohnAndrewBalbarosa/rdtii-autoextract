@@ -107,7 +107,7 @@ header_bar(s, "THE PROBLEM", "Manual RDTII workflow does not scale")
 add_bullets(s, 0.7, 1.8, 12, 4.5, [
     "ESCAP researchers manually search portals, retrieve PDFs, and read dense legal text.",
     "Per-article extraction across multiple jurisdictions — bottlenecked by researcher time and language coverage.",
-    "Asia-Pacific scope spans English, Vietnamese, Thai, Bahasa Malaysia, and more — scanned PDFs and anti-bot portals are routine.",
+    "Asia-Pacific scope spans English, Vietnamese, Thai, Bahasa Malaysia, and more — scanned PDFs and messy portals are routine.",
     "Existing literature targets GDPR / the EU AI Act — no open-source pipeline targets the RDTII indicators end-to-end.",
 ])
 speaker_notes(s, "0:15–0:45", "Frame the burden: manual workflow, multilingual, no existing open-source solution targets RDTII directly.")
@@ -140,7 +140,7 @@ header_bar(s, "AUTOMATED DISCOVERY  ·  STAGES 1–2", "Crawl, OCR, and caption 
 add_text(s, 0.7, 1.7, 6, 0.5, "Stage 1 — Discover", size=18, bold=True, color=BLUE)
 add_bullets(s, 0.7, 2.2, 6, 3.5, [
     "Playwright + BeautifulSoup crawler",
-    "Anti-bot handling; archive fallback",
+    "Compliant access handling; archive fallback",
     "Per-document provenance (URL, timestamp, country, language, source)",
     "Language detection routes non-English to translation",
 ], size=14)
@@ -256,7 +256,7 @@ add_bullets(s, 7.0, 2.2, 6, 3.5, [
     "No per-country retraining",
     "Non-English via captioning + translation",
     "Scanned PDFs via OCR (<5% CER)",
-    "Anti-bot portals via headless browser + archive fallback",
+    "Messy portals via headless browser + archive fallback",
     "Target ≥ 3 of 10 assigned countries at finale",
 ], size=14)
 speaker_notes(s, "—", "Off-script slide for Q&A; do not need to land on it in the 4-minute version.")

@@ -94,7 +94,7 @@ beat("1:00 – 1:25", 4,
 
 beat("1:25 – 2:35", 5,
      "The pipeline runs in five stages. Stages one and two handle automated "
-     "discovery of legal documents. A crawler — Playwright with anti-bot handling "
+     "discovery of legal documents. A crawler — Playwright with compliant access handling "
      "and archive fallback — locates regulations on national portals, gazettes, "
      "and ministry sites, recording full provenance per document. Then OCR "
      "converts every format to clean text at under five percent character error "

@@ -39,7 +39,7 @@ Every requirement below cites the Q&A item it comes from, so nothing is invented
 | R16 | **Open-source, modular, self-hostable.** | 5.4 |
 | R17 | **OCR < 5% CER.** | 5.4 |
 | R18 | **Audit view** for human verification. | 5.4 |
-| R19 | Must handle **non-English text, scanned PDFs, anti-bot / messy portals** (Finale). | 5.4 |
+| R19 | Must handle **non-English text, scanned PDFs, compliant access handling / messy portals** (Finale). | 5.4 |
 | R20 | Prove discovery of **new evidence** beyond the provided RDTII DB/guide (20 pts Stage 2). | 5.4, 2.3 |
 | R21 | **Cost estimate per 50-page document** must be documented (in Memo). | 4.3 |
 
