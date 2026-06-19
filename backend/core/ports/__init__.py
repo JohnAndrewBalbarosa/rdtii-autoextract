@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Protocol, Sequence
 
+from core.domain.document import ParsedDocument
 from core.domain.entities import Article, Finding
 
 
@@ -40,10 +41,22 @@ class VectorStore(Protocol):
     def search(self, query: str, k: int = 8) -> list[Article]: ...
 
 
+class DocumentExtractorPort(Protocol):
+    """Extracts structured document entities from a given URL (R7, OSI L7 Application)."""
+
+    def scrape_url(self, url: str) -> ParsedDocument: ...
+
+
+class HtmlFetcherPort(Protocol):
+    """Fetches raw HTTP text content from a URL (OSI L4 Transport)."""
+
+    def fetch(self, url: str) -> str: ...
+
+
 class LLMProvider(Protocol):
     """Structured extraction/verification. Paid in dev, open-weight in prod (R12)."""
 
-    def complete(self, prompt: str, schema: dict) -> dict: ...
+    def complete(self, prompt: str, schema: dict, agent_profile: str = "main_controller") -> dict: ...
 
 
 class IndicatorClassifier(Protocol):

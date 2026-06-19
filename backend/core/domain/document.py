@@ -33,6 +33,8 @@ class ParsedDocument:
     document_url: str
     language: str  # ISO 639-1
     sections: tuple[RawSection, ...]
+    tags: frozenset[str] = field(default_factory=frozenset)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

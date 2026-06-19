@@ -40,5 +40,5 @@ class LLMRouter:
         backend = os.environ.get(_ENV_BACKEND, _DEFAULT_BACKEND)
         return cls(providers, backend)
 
-    def complete(self, prompt: str, schema: dict) -> dict:
-        return self._providers[self._backend].complete(prompt, schema)
+    def complete(self, prompt: str, schema: dict, agent_profile: str = "main_controller") -> dict:
+        return self._providers[self._backend].complete(prompt, schema, agent_profile)

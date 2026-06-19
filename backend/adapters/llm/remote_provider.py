@@ -15,9 +15,13 @@ class RemoteLLMProvider:
         self._model = model
         self._api_key = api_key
 
-    def complete(self, prompt: str, schema: dict) -> dict:
+    def complete(self, prompt: str, schema: dict, agent_profile: str = "main_controller") -> dict:
+        # Based on agent_profile, we might swap out the model dynamically here
+        # e.g., 'extraction_agent' -> gemini-1.5-flash, 'main_controller' -> gemini-1.5-pro
+        model_to_use = "gemini-1.5-flash" if agent_profile in ("extraction_agent", "structuring_agent") else self._model
+
         raise NotImplementedError(
             "RemoteLLMProvider is a stub. Wire your hosted API call "
-            f"(model={self._model}) here, read the key from the environment, and return "
+            f"(model={model_to_use}) here, read the key from the environment, and return "
             "JSON matching `schema`."
         )

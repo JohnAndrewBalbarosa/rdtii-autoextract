@@ -15,8 +15,9 @@ class LocalLLMProvider:
         self._model = model
         self._endpoint = endpoint
 
-    def complete(self, prompt: str, schema: dict) -> dict:
+    def complete(self, prompt: str, schema: dict, agent_profile: str = "main_controller") -> dict:
         raise NotImplementedError(
             "LocalLLMProvider is a stub. Wire your local model (e.g. Ollama "
-            f"{self._model} at {self._endpoint}) here and return JSON matching `schema`."
+            f"{self._model} at {self._endpoint}) here and return JSON matching `schema`. "
+            f"Agent Profile: {agent_profile}"
         )
