@@ -1,80 +1,78 @@
-import sys
+"""RDTII Stage-2 validation CLI - honest scorecard against the golden databases.
+
+Prints *real* numbers only:
+  * the ground-truth coverage parsed from the Round 1 / Round 2 workbooks,
+  * the known-evidence baseline from the seed CSVs,
+  * a harness self-check (scoring gold against itself must yield F1 = 1.0).
+
+It deliberately does NOT print accuracy for the extraction pipeline yet: the pipeline
+does not emit ``Finding`` rows in this entry point. Once it does, pass them to
+``score(predictions, gold)`` and this file reports the true F1 - no placeholders.
+"""
+
+from __future__ import annotations
+
 import os
+import sys
 from collections import defaultdict
 
-# Add backend directory to sys.path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.pipeline.validation_engine import ValidationEngine
+from core.pipeline.golden_dataset import load_gold_records, load_reference_items
+from core.pipeline.scoring import discovery_diff, gold_to_match_item, score
 
-def run_validation_summary():
-    print("=" * 80)
-    print(" [RDTII GOLD STANDARD VALIDATION SUMMARY]")
-    print("=" * 80)
-    
-    engine = ValidationEngine()
-    
-    try:
-        records = engine.load_gold_standard_records()
-    except Exception as e:
-        print(f"Error loading Excel databases: {e}")
+_DOCS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs")
+_RULE = "=" * 78
+
+
+def main() -> None:
+    print(_RULE)
+    print(" RDTII STAGE-2 VALIDATION - GOLDEN DATASET SCORECARD")
+    print(_RULE)
+
+    gold = load_gold_records(_DOCS)
+    refs = load_reference_items(_DOCS)
+    if not gold:
+        print("No golden records found. Are the RDTII .xlsx files in docs/ ?")
         return
-        
-    print(f"Total reference mappings parsed (Pillars 6 & 7): {len(records)}")
-    
-    # Group by Country and Pillar
-    stats = defaultdict(lambda: {6: 0, 7: 0})
-    unique_urls = defaultdict(set)
-    unique_acts = defaultdict(set)
-    
-    for r in records:
-        country = r["country"]
-        pillar = r["pillar_id"]
-        stats[country][pillar] += 1
-        
-        # Track unique references
-        urls = r.get("parsed_urls", [])
-        for u in urls:
-            unique_urls[country].add(u)
-            
-        act = r.get("act_name")
-        if act:
-            unique_acts[country].add(act.strip())
-            
-    print("\nSummary Table:")
-    header = f"  +-- {'Country':<22} | {'Pillar 6':<10} | {'Pillar 7':<10} | {'Acts':<8} | {'URLs':<8}"
-    print(header)
-    print("  +--" + "-" * (len(header) - 5))
-    
-    total_p6 = 0
-    total_p7 = 0
-    total_acts = set()
-    total_urls = set()
-    
-    for country in sorted(stats.keys()):
-        p6 = stats[country][6]
-        p7 = stats[country][7]
-        num_acts = len(unique_acts[country])
-        num_urls = len(unique_urls[country])
-        
-        total_p6 += p6
-        total_p7 += p7
-        total_acts.update(unique_acts[country])
-        total_urls.update(unique_urls[country])
-        
-        print(f"  +-- {country:<22} | {p6:<10} | {p7:<10} | {num_acts:<8} | {num_urls:<8}")
-        
-    print("  +--" + "-" * (len(header) - 5))
-    print(f"  +-- {'TOTAL':<22} | {total_p6:<10} | {total_p7:<10} | {len(total_acts):<8} | {len(total_urls):<8}")
-    print("=" * 80)
-    
-    print("\nPipeline Accuracy Validation (Mock Evaluation of First 3 URLs):")
-    # For a real validation, we could load and run the extraction adapter
-    # against the cached gold records, but this prints our baseline scorecard layout.
-    print("  +-- Extraction Schema Alignment Score: 98.4%")
-    print("  +-- Entity Coreference Recall: 92.1%")
-    print("  +-- Calibration theta threshold recommendation: 0.74")
-    print("=" * 80)
+
+    print(f"Ground-truth mappings (Pillars 6 & 7): {len(gold)}")
+    print(f"Known-evidence baseline (seed CSVs):   {len(refs)}\n")
+
+    stats: dict[str, dict[int, int]] = defaultdict(lambda: {6: 0, 7: 0})
+    acts: dict[str, set[str]] = defaultdict(set)
+    urls: dict[str, set[str]] = defaultdict(set)
+    for record in gold:
+        stats[record.country][record.pillar_id] += 1
+        if record.act_name:
+            acts[record.country].add(record.act_name.strip().lower())
+        urls[record.country].update(record.urls)
+
+    print(f"  {'Country':<22} | {'P6':>4} | {'P7':>4} | {'Acts':>5} | {'URLs':>5}")
+    print(f"  {'-' * 22}-+-{'-' * 4}-+-{'-' * 4}-+-{'-' * 5}-+-{'-' * 5}")
+    for country in sorted(stats):
+        s = stats[country]
+        print(f"  {country:<22} | {s[6]:>4} | {s[7]:>4} | {len(acts[country]):>5} | {len(urls[country]):>5}")
+    tot6 = sum(s[6] for s in stats.values())
+    tot7 = sum(s[7] for s in stats.values())
+    all_acts = set().union(*acts.values()) if acts else set()
+    all_urls = set().union(*urls.values()) if urls else set()
+    print(f"  {'-' * 22}-+-{'-' * 4}-+-{'-' * 4}-+-{'-' * 5}-+-{'-' * 5}")
+    print(f"  {'TOTAL':<22} | {tot6:>4} | {tot7:>4} | {len(all_acts):>5} | {len(all_urls):>5}")
+
+    # Harness self-check: scoring the ground truth against itself proves the matcher
+    # is sound (perfect F1) before we trust it on real predictions.
+    print("\n" + _RULE)
+    print(" HARNESS SELF-CHECK (gold vs gold - must be 1.000)")
+    print(_RULE)
+    self_report = score([gold_to_match_item(r) for r in gold], list(gold))
+    print(f"  precision={self_report.precision:.3f}  recall={self_report.recall:.3f}  f1={self_report.f1:.3f}")
+    print(f"  novel-vs-itself (must be 0): {len(discovery_diff([gold_to_match_item(r) for r in gold], list(gold), refs))}")
+
+    print("\n" + _RULE)
+    print(" PIPELINE ACCURACY: not wired yet - feed Findings to score(preds, gold).")
+    print(_RULE)
+
 
 if __name__ == "__main__":
-    run_validation_summary()
+    main()

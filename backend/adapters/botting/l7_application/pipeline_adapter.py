@@ -2,21 +2,29 @@ from typing import Any, Optional
 
 from core.ports import LLMProvider, DocumentExtractorPort, HtmlFetcherPort
 from core.domain.document import ParsedDocument, RawSection
+from adapters.botting.l4_transport.fetch_result import FetchResult
+from adapters.botting.l4_transport.pdf_parser import PdfParser
 from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
 from adapters.botting.scaffolds.scaffold_registry import ScaffoldRegistry
+
 
 class PipelineAdapter(DocumentExtractorPort):
     """OSI Layer 7 (Application): Task-Specific Pipeline coordinating L4, L6, Scaffolds, and AI."""
 
-    def __init__(self, 
-                 llm_provider: LLMProvider, 
-                 fetcher: HtmlFetcherPort, 
-                 cleaner: DomCleaner,
-                 scaffold_registry: Optional[ScaffoldRegistry] = None):
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        fetcher: HtmlFetcherPort,
+        cleaner: DomCleaner,
+        scaffold_registry: Optional[ScaffoldRegistry] = None,
+        pdf_parser: Optional[PdfParser] = None,
+    ):
         self._llm = llm_provider
         self._fetcher = fetcher
         self._cleaner = cleaner
         self._scaffold_registry = scaffold_registry
+        # PdfParser is optional; created on demand if not injected
+        self._pdf_parser = pdf_parser or PdfParser()
 
     def scrape_url(self, url: str) -> ParsedDocument:
         # Check for site-specific scaffold
@@ -24,15 +32,25 @@ class PipelineAdapter(DocumentExtractorPort):
         custom_selectors = scaffold.get_custom_selectors() if scaffold else {}
         keywords = scaffold.get_keywords() if scaffold else []
 
-        # Step 1: L4 Transport (Fetch) 
-        # (TransportFactory handles the Hybrid Static/Dynamic logic internally)
-        raw_html = self._fetcher.fetch(url)
+        # Step 1: L4 Transport (Fetch) — use fetch_raw if available for binary-safe routing
+        if hasattr(self._fetcher, "fetch_raw"):
+            result: FetchResult = self._fetcher.fetch_raw(url)
+            is_pdf = result.is_pdf
+        else:
+            # Fallback for fetchers that only implement HtmlFetcherPort.fetch()
+            raw_html = self._fetcher.fetch(url)
+            is_pdf = url.lower().endswith(".pdf")
+            result = None  # type: ignore[assignment]
 
-        # Step 2: L6 Presentation (Clean)
-        cleaned_text = self._cleaner.clean_html(raw_html, custom_selectors)
-        
-        # Discover links
-        discovered_links = self._cleaner.discover_links(raw_html, custom_selectors)
+        # Step 2: Route by content type — PDF → PdfParser, HTML → DomCleaner
+        if is_pdf:
+            pdf_bytes = result.body if result is not None else self._pdf_parser.download_pdf(url)
+            cleaned_text = self._pdf_parser.extract_text(pdf_bytes)
+            discovered_links: list[str] = []
+        else:
+            raw_html = result.text if result is not None else raw_html  # type: ignore[assignment]
+            cleaned_text = self._cleaner.clean_html(raw_html, custom_selectors)
+            discovered_links = self._cleaner.discover_links(raw_html, custom_selectors)
 
         # Step 3: The Extraction Sub-Agent (Small Model)
         extracted_markdown = self._extract_markdown_with_llm(cleaned_text)
@@ -47,7 +65,7 @@ class PipelineAdapter(DocumentExtractorPort):
                 RawSection(
                     heading=section.get("heading", ""),
                     level=section.get("level", 1),
-                    text=section.get("text", "")
+                    text=section.get("text", ""),
                 )
             )
 
@@ -63,9 +81,7 @@ class PipelineAdapter(DocumentExtractorPort):
             language="en",
             sections=tuple(sections),
             tags=frozenset(tags),
-            metadata={
-                "discovered_links": discovered_links
-            }
+            metadata={"discovered_links": discovered_links},
         )
 
     def _extract_markdown_with_llm(self, text: str) -> str:
@@ -76,8 +92,6 @@ class PipelineAdapter(DocumentExtractorPort):
             f"{text}"
         )
         schema = {"type": "object", "properties": {"markdown_content": {"type": "string"}}}
-        
-        # Route to the specialized extraction agent profile
         response = self._llm.complete(prompt, schema, agent_profile="extraction_agent")
         return response.get("markdown_content", "")
 
@@ -99,14 +113,12 @@ class PipelineAdapter(DocumentExtractorPort):
                         "properties": {
                             "heading": {"type": "string"},
                             "level": {"type": "integer"},
-                            "text": {"type": "string"}
+                            "text": {"type": "string"},
                         },
-                        "required": ["heading", "level", "text"]
-                    }
+                        "required": ["heading", "level", "text"],
+                    },
                 }
             },
-            "required": ["sections"]
+            "required": ["sections"],
         }
-        
-        # Route to the specialized structuring agent profile
         return self._llm.complete(prompt, schema, agent_profile="structuring_agent")
