@@ -16,12 +16,14 @@ fresh objects). Thread-safe via threading.Lock on mutable fields.
 """
 from __future__ import annotations
 
+import itertools
 import os
 import random
 import threading
 import time
 import urllib.parse
-from typing import Dict, List, Optional
+from typing import Callable, Deque, Dict, List, Optional
+from collections import deque
 
 from adapters.botting.l4_transport.proxy_provider import ProxyEndpoint, ProxyProvider
 
@@ -91,17 +93,43 @@ class FreeProxyProvider:
 # ---------------------------------------------------------------------------
 
 class ConfiguredRotatingProxyProvider:
-    """Rotates through a caller-supplied list of endpoints.
+    """Proactive load-distribution proxy provider (BYO list / residential template).
+
+    Strategy is PROACTIVE, not reactive: instead of hammering one IP until the
+    server bans it and only then rotating, we spread requests across the egress
+    pool so each IP carries few, low-rate hits and looks like a separate ordinary
+    visitor. Ban-handling (report/rotate) remains only as a defensive safety net
+    that should now rarely fire.
+
+    Two mechanisms cooperate:
+
+      1. Fixed proxy LIST: a fresh egress is chosen per request using
+         least-recently-used (LRU) selection — the endpoint idle longest wins —
+         so load stays even. A per-IP rate budget (`max_requests_per_ip` within
+         `rate_window` seconds) proactively SKIPS an endpoint *before* any server
+         pushback; if every endpoint is momentarily over budget the soonest-
+         eligible one is picked.
+
+      2. Rotating-residential TEMPLATE: when `proxy_template` carries a
+         `{session}` placeholder we mint a UNIQUE session token per request via a
+         seeded, injectable counter. Distinct tokens => distinct exit IPs => the
+         gateway makes us look like many ordinary users, not one spammer.
 
     Config options (all optional, merged from kwargs then env):
-      proxy_list      List[str]  — pre-parsed list of proxy URL strings
-      proxy_template  str        — URL with {session} placeholder; each rotation
-                                   generates a new session suffix
-      seed            int        — seed for deterministic ordering in tests
-      cooldown        int        — seconds to skip a banned endpoint (default 120)
+      proxy_list           List[str]  pre-parsed list of proxy URL strings
+      proxy_template       str        URL with {session} placeholder (per-request token)
+      seed                 int        seed for deterministic ordering/tokens in tests
+      cooldown             int        seconds to skip a BANNED endpoint (default 120)
+      rotation             str        'per_request' (default) | 'per_n:<k>' | 'sticky'
+      max_requests_per_ip  int        per-IP rate budget within rate_window (default 5)
+      rate_window          float      sliding window seconds for the budget (default 60.0)
+      clock                callable   injected monotonic clock -> float (tests)
     """
 
     _DEFAULT_COOLDOWN = 120
+    _DEFAULT_MAX_RPS_PER_IP = 5      # max hits one egress IP may take per window
+    _DEFAULT_RATE_WINDOW = 60.0     # sliding window (seconds) for the budget
+    _DEFAULT_ROTATION = "per_request"
 
     def __init__(
         self,
@@ -109,6 +137,10 @@ class ConfiguredRotatingProxyProvider:
         proxy_template: Optional[str] = None,
         seed: Optional[int] = None,
         cooldown: int = _DEFAULT_COOLDOWN,
+        rotation: str = _DEFAULT_ROTATION,
+        max_requests_per_ip: int = _DEFAULT_MAX_RPS_PER_IP,
+        rate_window: float = _DEFAULT_RATE_WINDOW,
+        clock: Optional[Callable[[], float]] = None,
     ) -> None:
         raw_list = proxy_list or []
         if not raw_list:
@@ -118,58 +150,142 @@ class ConfiguredRotatingProxyProvider:
 
         self._template = proxy_template or os.environ.get("PROXY_TEMPLATE")
         self._cooldown_seconds = cooldown
+        self._max_per_ip = max(1, int(max_requests_per_ip))
+        self._rate_window = float(rate_window)
+        self._clock: Callable[[], float] = clock or time.monotonic
         self._lock = threading.Lock()
-        self._cooldown: Dict[str, float] = {}  # proxy_url -> expiry
+        self._cooldown: Dict[str, float] = {}       # proxy_url -> ban expiry (clock units)
+        self._last_used: Dict[str, float] = {}      # proxy_url -> last selection time (LRU)
+        self._recent: Dict[str, Deque[float]] = {}  # proxy_url -> recent use timestamps
+
+        # rotation policy: per_request | sticky | per_n:<k>
+        self._rotation, self._per_n = _parse_rotation(rotation)
+        self._sticky_url: Optional[str] = None  # for sticky / per_n hold
+        self._sticky_remaining = 0
 
         rng = random.Random(seed)
         self._pool: List[str] = list(raw_list)
         if seed is not None:
             rng.shuffle(self._pool)
 
-        self._index = 0
+        # Seeded, injectable counter -> unique {session} token per request.
+        self._session_counter = itertools.count(rng.randint(0, 0xFFFF))
         self._rng = rng
 
     # ------------------------------------------------------------------
-    def _next_from_pool(self) -> Optional[str]:
-        """Advance index, skip cooled-down entries."""
+    # Eligibility / budget helpers (call under self._lock)
+    # ------------------------------------------------------------------
+    def _is_cooled_down(self, url: str, now: float) -> bool:
+        """True if *url* is still serving a ban cooldown (defensive net)."""
+        return now < self._cooldown.get(url, 0.0)
+
+    def _prune_recent(self, url: str, now: float) -> Deque[float]:
+        dq = self._recent.setdefault(url, deque())
+        cutoff = now - self._rate_window
+        while dq and dq[0] <= cutoff:
+            dq.popleft()
+        return dq
+
+    def _over_budget(self, url: str, now: float) -> bool:
+        """Proactive skip: True if using *url* now exceeds its per-IP rate budget."""
+        return len(self._prune_recent(url, now)) >= self._max_per_ip
+
+    def _earliest_eligible_time(self, url: str, now: float) -> float:
+        """When *url* next drops under budget (for soonest-eligible fallback)."""
+        dq = self._prune_recent(url, now)
+        if len(dq) < self._max_per_ip:
+            return now
+        # the oldest in-window hit must age out of the window
+        return dq[0] + self._rate_window
+
+    def _record_use_locked(self, url: str, now: float) -> None:
+        self._last_used[url] = now
+        self._prune_recent(url, now).append(now)
+
+    # ------------------------------------------------------------------
+    # LRU + budget selection over the fixed list (call under self._lock)
+    # ------------------------------------------------------------------
+    def _select_from_pool(self, now: float) -> Optional[str]:
         if not self._pool:
             return None
-        n = len(self._pool)
-        for _ in range(n):
-            url = self._pool[self._index % n]
-            self._index += 1
-            if not self._is_cooled_down(url):
-                return url
-        return None  # all banned
 
-    def _is_cooled_down(self, url: str) -> bool:
-        return time.time() < self._cooldown.get(url, 0.0)
+        # Sticky / per_n: keep the held endpoint while it stays eligible.
+        if self._rotation != "per_request" and self._sticky_url is not None:
+            held = self._sticky_url
+            if (
+                self._sticky_remaining > 0
+                and not self._is_cooled_down(held, now)
+                and not self._over_budget(held, now)
+            ):
+                self._sticky_remaining -= 1
+                return held
+            self._sticky_url = None  # fall through to pick a fresh one
+
+        # Candidates that are neither banned nor over their per-IP budget.
+        eligible = [
+            u for u in self._pool
+            if not self._is_cooled_down(u, now) and not self._over_budget(u, now)
+        ]
+        if eligible:
+            # LRU: pick the endpoint idle the longest (never used == idle forever).
+            chosen = min(eligible, key=lambda u: self._last_used.get(u, float("-inf")))
+        else:
+            # Everyone momentarily over budget (and not banned): soonest-eligible.
+            usable = [u for u in self._pool if not self._is_cooled_down(u, now)]
+            if not usable:
+                return None  # whole pool banned -> caller falls back to template
+            chosen = min(usable, key=lambda u: self._earliest_eligible_time(u, now))
+
+        if self._rotation != "per_request":
+            self._sticky_url = chosen
+            self._sticky_remaining = max(0, self._per_n - 1)
+        return chosen
 
     def _template_endpoint(self) -> Optional[ProxyEndpoint]:
+        """Mint a UNIQUE {session} token per request -> new exit IP each call."""
         if not self._template:
             return None
-        session = self._rng.randint(0, 0xFFFF)
-        url = self._template.replace("{session}", f"{session:04x}")
+        session = next(self._session_counter)
+        url = self._template.replace("{session}", f"{session:08x}")
         return _parse_url(url)
 
     # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
     def get(self) -> Optional[ProxyEndpoint]:
         with self._lock:
-            raw = self._next_from_pool()
+            now = self._clock()
+            raw = self._select_from_pool(now)
             if raw:
+                self._record_use_locked(raw, now)
                 return _parse_url(raw)
+            # No list (or whole pool banned): residential template path.
             return self._template_endpoint()
+
+    def record_use(self, endpoint: ProxyEndpoint) -> None:
+        """Optional hook: refresh LRU + budget if HttpClient selects out-of-band.
+
+        get() already records usage, so this is idempotent-ish; it exists so the
+        transport layer can mark usage for endpoints minted elsewhere (template).
+        """
+        url = endpoint.as_url()
+        with self._lock:
+            # Only track endpoints we actually manage in the fixed pool; template
+            # endpoints are unique per request so tracking them is pointless.
+            if url in self._pool:
+                self._record_use_locked(url, self._clock())
 
     def report(self, endpoint: ProxyEndpoint, ok: bool) -> None:
         if not ok:
             url = endpoint.as_url()
             with self._lock:
-                self._cooldown[url] = time.time() + self._cooldown_seconds
+                self._cooldown[url] = self._clock() + self._cooldown_seconds
 
     def rotate(self) -> None:
         with self._lock:
-            if self._pool:
-                self._index += 1
+            # Drop any sticky hold so the next get() re-selects via LRU/budget.
+            self._sticky_url = None
+            self._sticky_remaining = 0
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +354,9 @@ def proxy_provider_from_config(config: Optional[dict] = None) -> ProxyProvider:
       PROXY_TEMPLATE  : URL template with {session} (for 'configured')
       PROXY_SEED      : int seed for deterministic rotation (for 'configured')
       PROXY_COOLDOWN  : seconds to cool-down a banned endpoint (default 120)
+      PROXY_ROTATION  : per_request (default) | per_n:<k> | sticky (for 'configured')
+      PROXY_MAX_RPS_PER_IP : per-IP rate budget within the window (default 5)
+      PROXY_RATE_WINDOW    : sliding window seconds for the budget (default 60)
       PROXY_SIM_HOST  : host for simulated server (default 127.0.0.1)
       PROXY_SIM_PORT  : port for simulated server (default 8088)
     """
@@ -258,11 +377,17 @@ def proxy_provider_from_config(config: Optional[dict] = None) -> ProxyProvider:
         seed_str = _get("PROXY_SEED", "")
         seed = int(seed_str) if seed_str.strip().lstrip("-").isdigit() else None
         cooldown = int(_get("PROXY_COOLDOWN", "120"))
+        rotation = _get("PROXY_ROTATION", "per_request")
+        max_per_ip = int(_get("PROXY_MAX_RPS_PER_IP", "5"))
+        rate_window = float(_get("PROXY_RATE_WINDOW", "60"))
         return ConfiguredRotatingProxyProvider(
             proxy_list=proxy_list,
             proxy_template=template,
             seed=seed,
             cooldown=cooldown,
+            rotation=rotation,
+            max_requests_per_ip=max_per_ip,
+            rate_window=rate_window,
         )
 
     if mode == "simulated":
@@ -277,6 +402,24 @@ def proxy_provider_from_config(config: Optional[dict] = None) -> ProxyProvider:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _parse_rotation(rotation: str) -> tuple[str, int]:
+    """Parse the PROXY_ROTATION knob into (policy, n).
+
+    Accepts 'per_request' (default), 'sticky', or 'per_n:<k>'. Unknown values
+    fall back to per_request. Returns the policy name plus the hold count n
+    (1 for per_request/sticky-by-1, k for per_n:<k>).
+    """
+    value = (rotation or "per_request").strip().lower()
+    if value.startswith("per_n:"):
+        suffix = value.split(":", 1)[1].strip()
+        n = int(suffix) if suffix.lstrip("-").isdigit() else 1
+        return ("per_n", max(1, n))
+    if value == "sticky":
+        # sticky == hold one egress as long as it stays eligible
+        return ("sticky", 10 ** 9)
+    return ("per_request", 1)
+
 
 def _parse_url(url: str) -> ProxyEndpoint:
     """Parse a proxy URL string into a ProxyEndpoint."""

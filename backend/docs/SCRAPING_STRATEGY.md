@@ -41,11 +41,24 @@ A `ProxyProvider` port (`get()`, `report(endpoint, ok)`, `rotate()`) with swappa
 | `simulated` | `SimulatedProxyProvider` | local server for deterministic tests |
 
 BYO credentials via `PROXY_LIST` (comma-separated `scheme://user:pass@host:port`) or
-`PROXY_TEMPLATE` (`{session}` placeholder for sticky/rotating sessions). Tunables:
-`PROXY_SEED` (deterministic rotation), `PROXY_COOLDOWN`, `PROXY_SIM_HOST/PORT`.
+`PROXY_TEMPLATE` (`{session}` placeholder for rotating-residential gateways). Tunables:
+`PROXY_SEED` (deterministic order), `PROXY_COOLDOWN`, `PROXY_ROTATION`
+(`per_request` default | `per_n:<k>` | `sticky`), `PROXY_MAX_RPS_PER_IP` (default 5),
+`PROXY_RATE_WINDOW` (default 60s), `PROXY_SIM_HOST/PORT`.
 
-**Ban handling:** on HTTP 403/429 → `report(ok=False)` (cooldown that endpoint) → `rotate()`
-→ exponential backoff (injectable sleep) → retry within a bounded budget. A per-domain
+**Rotation is PROACTIVE — "many users, not one spammer":** the egress rotates on *every*
+request. Selection is **least-recently-used** with a **per-IP rate budget** — an IP nearing
+`PROXY_MAX_RPS_PER_IP` within `PROXY_RATE_WINDOW` is skipped and cooled *before* any server
+pushes back, so each IP carries only a low, human-looking request rate. For
+rotating-residential gateways a **fresh `{session}` token is minted per request**, so each
+request exits from a new IP. We do NOT hammer one IP until it is banned and only then rotate.
+Verified: 8 requests over a 4-IP pool spread 2/2/2/2 with no consecutive repeats; template
+mode yields a unique exit identity per request.
+
+**Ban handling is only a safety net:** if a 403/429 still occurs it cools that IP, rotates,
+and retries with bounded exponential backoff — but because load is distributed up front, a
+ban should rarely be reached. This is **best-effort on a sufficiently large pool, not a
+guarantee**: a tiny pool under high volume can still exceed a site's tolerance. A per-domain
 throttle enforces a minimum gap between hits to the same host.
 
 **Header realism:** realistic browser UA + `Accept` / `Accept-Language` / `Accept-Encoding`

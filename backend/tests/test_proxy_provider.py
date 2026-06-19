@@ -35,6 +35,19 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
+class _FakeClock:
+    """Deterministic injectable monotonic clock (no wall-clock dependency)."""
+
+    def __init__(self, start: float = 1000.0) -> None:
+        self.now = float(start)
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += float(seconds)
+
+
 class _EchoHandler(BaseHTTPRequestHandler):
     """Returns 200 with all received request headers as response headers."""
 
@@ -94,25 +107,26 @@ class TestConfiguredRotatingProxyProvider:
     # ------------------------------------------------------------------
 
     def test_ban_causes_rotation_to_different_endpoint(self):
+        # API change: selection is now LRU + per-IP budget, not index-based, so
+        # we drive the ban scenario through the public API (no _index poke).
         pool = [
             "http://good.example.com:80",
             "http://banned.example.com:80",
         ]
-        p = ConfiguredRotatingProxyProvider(proxy_list=pool, seed=None, cooldown=9999)
+        clock = _FakeClock()
+        p = ConfiguredRotatingProxyProvider(
+            proxy_list=pool, seed=None, cooldown=9999, clock=clock,
+        )
 
-        # Force index to the "banned" proxy
-        p._index = 1
+        # Pick whichever endpoint LRU hands out first, then ban it.
         banned = p.get()
         assert banned is not None
-        assert banned.host == "banned.example.com"
-
-        # Report the ban
         p.report(banned, ok=False)
 
-        # Next get() must skip the banned host (still in cooldown)
+        # Next get() must skip the banned host (still in cooldown).
         next_ep = p.get()
         assert next_ep is not None
-        assert next_ep.host != "banned.example.com"
+        assert next_ep.host != banned.host
 
     def test_ban_cooldown_expires_and_endpoint_comes_back(self):
         pool = ["http://only.example.com:80"]
@@ -359,3 +373,219 @@ class TestLegacyCompatibility:
         # NoProxy path: get() returns None
         ep = client._provider.get()
         assert ep is None
+
+
+# ---------------------------------------------------------------------------
+# PROACTIVE load distribution: LRU spread + per-IP budget + template tokens
+# ---------------------------------------------------------------------------
+
+class TestProactiveLoadDistribution:
+
+    def _pool(self, n: int) -> List[str]:
+        return [f"http://p{i}.example.com:80" for i in range(n)]
+
+    # (a) per_request spreads K >= pool-size requests evenly across all IPs
+    def test_per_request_spreads_evenly_across_pool(self):
+        clock = _FakeClock()
+        pool = self._pool(4)
+        p = ConfiguredRotatingProxyProvider(
+            proxy_list=pool, seed=1, clock=clock,
+            max_requests_per_ip=100, rate_window=60.0,
+        )
+        counts = {}
+        # 12 requests over 4 IPs -> each IP ~3 times (advance clock per request)
+        for _ in range(12):
+            ep = p.get()
+            assert ep is not None
+            counts[ep.host] = counts.get(ep.host, 0) + 1
+            clock.advance(0.1)
+
+        # All four IPs were used, and load is even (LRU round-robins).
+        assert len(counts) == 4
+        assert set(counts.values()) == {3}
+
+    # (b) an IP at its per-IP budget is SKIPPED proactively (no ban needed)
+    def test_over_budget_ip_skipped_before_any_ban(self):
+        clock = _FakeClock()
+        pool = self._pool(2)
+        p = ConfiguredRotatingProxyProvider(
+            proxy_list=pool, seed=0, clock=clock,
+            max_requests_per_ip=2, rate_window=60.0,
+        )
+        hosts = []
+        # 4 requests, budget=2/IP/60s -> 2 each, none banned, none repeated >2x
+        for _ in range(4):
+            ep = p.get()
+            assert ep is not None
+            hosts.append(ep.host)
+            clock.advance(0.5)
+
+        assert hosts.count(pool_host(pool[0])) <= 2
+        assert hosts.count(pool_host(pool[1])) <= 2
+        assert len(set(hosts)) == 2
+
+        # 5th request: both IPs are at budget within the window -> still served
+        # (soonest-eligible), NOT a None / ban — proactive cooling, not refusal.
+        ep5 = p.get()
+        assert ep5 is not None
+
+    # (c) LRU picks the longest-idle endpoint
+    def test_lru_picks_longest_idle_endpoint(self):
+        clock = _FakeClock()
+        pool = self._pool(3)
+        p = ConfiguredRotatingProxyProvider(
+            proxy_list=pool, seed=0, clock=clock,
+            max_requests_per_ip=100, rate_window=600.0,
+        )
+        first = p.get(); clock.advance(1)
+        second = p.get(); clock.advance(1)
+        third = p.get(); clock.advance(1)
+        # All three distinct so far (each idle "forever" until used).
+        assert len({first.host, second.host, third.host}) == 3
+
+        # Next pick MUST be `first` again — it has been idle the longest.
+        fourth = p.get()
+        assert fourth.host == first.host
+
+    # (d) TEMPLATE mode yields a UNIQUE session token per request
+    def test_template_mints_unique_session_per_request(self):
+        clock = _FakeClock()
+        p = ConfiguredRotatingProxyProvider(
+            proxy_template="http://user-session-{session}:pass@gate.example.com:8088",
+            seed=7, clock=clock,
+        )
+        tokens = []
+        for _ in range(20):
+            ep = p.get()
+            assert ep is not None
+            assert ep.host == "gate.example.com"
+            assert "{session}" not in (ep.username or "")
+            tokens.append(ep.username)
+            clock.advance(0.01)
+
+        # Every request -> distinct session token -> distinct exit IP.
+        assert len(set(tokens)) == 20
+
+    def test_template_tokens_deterministic_under_seed(self):
+        c1, c2 = _FakeClock(), _FakeClock()
+        tmpl = "http://s-{session}:pass@gate.example.com:8088"
+        p1 = ConfiguredRotatingProxyProvider(proxy_template=tmpl, seed=99, clock=c1)
+        p2 = ConfiguredRotatingProxyProvider(proxy_template=tmpl, seed=99, clock=c2)
+        seq1 = [p1.get().username for _ in range(5)]
+        seq2 = [p2.get().username for _ in range(5)]
+        assert seq1 == seq2
+
+    # (e) ban-handling still works as a FALLBACK safety net
+    def test_ban_handling_still_cools_down_endpoint(self):
+        clock = _FakeClock()
+        pool = self._pool(2)
+        p = ConfiguredRotatingProxyProvider(
+            proxy_list=pool, seed=0, cooldown=300, clock=clock,
+            max_requests_per_ip=100, rate_window=60.0,
+        )
+        victim = p.get()
+        p.report(victim, ok=False)
+
+        # Banned host is skipped while cooling down.
+        for _ in range(4):
+            ep = p.get()
+            assert ep.host != victim.host
+            clock.advance(1)
+
+        # After cooldown expires it returns to the eligible set.
+        clock.advance(301)
+        seen = {p.get().host for _ in range(6)}
+        assert victim.host in seen
+
+    def test_rotate_clears_sticky_hold(self):
+        clock = _FakeClock()
+        pool = self._pool(3)
+        p = ConfiguredRotatingProxyProvider(
+            proxy_list=pool, seed=0, rotation="sticky", clock=clock,
+            max_requests_per_ip=100, rate_window=600.0,
+        )
+        a = p.get().host
+        assert p.get().host == a  # sticky holds the same egress
+        p.rotate()                # defensive rotate drops the hold
+        clock.advance(1)
+        b = p.get().host
+        assert b != a
+
+
+# ---------------------------------------------------------------------------
+# (f) Factory wires the new proactive knobs
+# ---------------------------------------------------------------------------
+
+class TestProactiveFactoryKnobs:
+
+    def test_factory_wires_rotation_and_budget_knobs(self):
+        p = proxy_provider_from_config({
+            "PROXY_MODE": "configured",
+            "PROXY_LIST": "http://a.example.com:80,http://b.example.com:80",
+            "PROXY_ROTATION": "per_n:3",
+            "PROXY_MAX_RPS_PER_IP": "7",
+            "PROXY_RATE_WINDOW": "30",
+            "PROXY_SEED": "5",
+        })
+        assert isinstance(p, ConfiguredRotatingProxyProvider)
+        assert p._rotation == "per_n"
+        assert p._per_n == 3
+        assert p._max_per_ip == 7
+        assert p._rate_window == 30.0
+
+    def test_factory_defaults_to_per_request(self):
+        p = proxy_provider_from_config({
+            "PROXY_MODE": "configured",
+            "PROXY_LIST": "http://a.example.com:80",
+        })
+        assert isinstance(p, ConfiguredRotatingProxyProvider)
+        assert p._rotation == "per_request"
+        assert p._max_per_ip == 5
+        assert p._rate_window == 60.0
+
+
+def pool_host(url: str) -> str:
+    import urllib.parse as _u
+    return _u.urlparse(url).hostname or url
+
+
+# ---------------------------------------------------------------------------
+# HttpClient drives proactive selection: fresh proxy + record_use per request
+# ---------------------------------------------------------------------------
+
+class TestHttpClientProactiveSelection:
+
+    def test_fresh_proxy_selected_and_usage_recorded_per_request(self):
+        provider = MagicMock(spec=ProxyProvider)
+        ep = ProxyEndpoint(scheme="http", host="egress.example.com", port=80)
+        provider.get.return_value = ep
+
+        client = HttpClient(
+            proxy_provider=provider,
+            domain_throttle=0.0,
+            _sleep=lambda _: None,
+        )
+
+        from adapters.botting.l4_transport.fetch_result import FetchResult
+        ok = FetchResult(url="http://x/", status=200, content_type="text/html", body=b"OK")
+        with patch.object(client, "_do_fetch", return_value=ok):
+            client.fetch_raw("http://x/")
+
+        # Fresh egress chosen for the request and its usage recorded (proactive).
+        provider.get.assert_called_once()
+        provider.record_use.assert_called_once_with(ep)
+
+    def test_record_use_skipped_when_provider_lacks_it(self):
+        # NoProxyProvider has no record_use; client must not crash.
+        port = _free_port()
+        server = _start_mock_server(port)
+        try:
+            client = HttpClient(
+                proxy_provider=NoProxyProvider(),
+                domain_throttle=0.0,
+                _sleep=lambda _: None,
+            )
+            result = client.fetch_raw(f"http://127.0.0.1:{port}/")
+            assert result.status == 200
+        finally:
+            server.shutdown()

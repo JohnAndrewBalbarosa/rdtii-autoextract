@@ -105,7 +105,11 @@ class HttpClient(HtmlFetcherPort):
         last_exc: Optional[Exception] = None
 
         for attempt in range(self._max_retries + 1):
+            # PROACTIVE rotation: a fresh egress is selected for EVERY request so
+            # load spreads across the pool and each IP stays low-rate — we do NOT
+            # wait for a ban to rotate. The ban-handling below is only a fallback.
             endpoint: Optional[ProxyEndpoint] = self._provider.get()
+            self._mark_used(endpoint)
             try:
                 result = self._do_fetch(url, endpoint)
                 # Record successful fetch for per-domain throttle
@@ -152,6 +156,19 @@ class HttpClient(HtmlFetcherPort):
 
     def _record_hit(self, url: str) -> None:
         self._last_hit[_host(url)] = time.time()
+
+    def _mark_used(self, endpoint: Optional[ProxyEndpoint]) -> None:
+        """Tell usage-aware providers that *endpoint* was just selected.
+
+        Lets the provider keep its LRU + per-IP rate budget current so it can
+        proactively spread load. Optional on the Protocol — skipped silently for
+        providers (NoProxy, Simulated) that don't implement it.
+        """
+        if endpoint is None:
+            return
+        record_use = getattr(self._provider, "record_use", None)
+        if callable(record_use):
+            record_use(endpoint)
 
     def _do_fetch(self, url: str, endpoint: Optional[ProxyEndpoint]) -> FetchResult:
         """Single HTTP attempt via *endpoint* (or direct if None)."""

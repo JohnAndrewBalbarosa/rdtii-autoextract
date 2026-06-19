@@ -48,3 +48,13 @@ class ProxyProvider(Protocol):
     def rotate(self) -> None:
         """Advance to the next endpoint in the pool immediately."""
         ...
+
+    def record_use(self, endpoint: ProxyEndpoint) -> None:  # pragma: no cover - optional
+        """Record that *endpoint* was just used (proactive LRU + rate budget).
+
+        Optional in the Protocol: providers that do not distribute load
+        proactively (NoProxyProvider, SimulatedProxyProvider) may omit it.
+        The HttpClient calls it after selection so usage-aware providers can
+        keep their least-recently-used ordering and per-IP rate budget fresh.
+        """
+        ...
