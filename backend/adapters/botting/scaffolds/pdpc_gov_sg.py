@@ -12,14 +12,16 @@ class PDPCScaffold(BaseScaffold):
         return "auto"
 
     def get_custom_selectors(self) -> dict[str, str]:
-        # PROVISIONAL: selectors to be refined against live DOM
         return {
-            "content_area": "main, #content, article, .page-content",
+            "content_area": ".page-content, main, #content, article",
             "pdf_links": 'a[href$=".pdf"]',
             "article_links": 'main a, #content a, article a',
             "title": "h1, .page-title",
-            "sections": "h2, h3, p, .guidance-section"
+            "sections": "h2, h3, p, .guidance-section",
         }
+
+    def get_boilerplate_selectors(self) -> list[str]:
+        return [".breadcrumb", ".related-content", ".share-bar", ".sidebar", ".footer"]
 
     def get_keywords(self) -> list[str]:
         return [

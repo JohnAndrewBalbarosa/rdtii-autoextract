@@ -4,6 +4,7 @@ from .base_scaffold import BaseScaffold
 from .homeaffairs_gov_au import HomeAffairsScaffold
 from .sso_agc_gov_sg import SSOAgcScaffold
 from .pdpc_gov_sg import PDPCScaffold
+from .pdp_gov_my import PDPMyScaffold
 
 class ScaffoldRegistry:
     """OSI Layer 7 (Application): Registry to discover and match URLs to Scaffolds."""
@@ -15,6 +16,7 @@ class ScaffoldRegistry:
                 HomeAffairsScaffold(),
                 SSOAgcScaffold(),
                 PDPCScaffold(),
+                PDPMyScaffold(),
             ]
         self._scaffolds = {s.target_domain: s for s in scaffolds}
 

@@ -31,6 +31,10 @@ from dataclasses import dataclass
 from core.domain.document import CrawledDocument
 from core.domain.entities import DiscoveryTag, Finding, Pillar
 from core.domain.indicator_codes import to_canonical
+from adapters.botting.l6_presentation.html_sections import (
+    format_location_ref,
+    section_for_offset,
+)
 
 # --- Tunables (named constants — no magic numbers) ---------------------------
 
@@ -70,7 +74,7 @@ _PILLAR_KEYWORDS: dict[int, tuple[tuple[str, str], ...]] = {
 
 # "Section 26", "Section 26A", "Article 12", "Art. 5", "s. 14" near a match.
 _SECTION_RE = re.compile(
-    r"\b(?:Section|Article|Art\.?|s\.)\s*\d+[A-Za-z]?\b",
+    r"\b(?:Section|Article|Art\.?|s\.)\s*\d+[A-Za-z]?\b|\b\d+[A-Za-z]?\.\s*[—-]",
     re.IGNORECASE,
 )
 
@@ -144,6 +148,10 @@ class MockProvisionExtractor:
         article_section = self._nearest_section(doc.text or "", match)
         rationale = self._rationale(match.keyword, indicator)
         notes = "Extracted from PDF text." if doc.is_pdf else ""
+        location_ref = doc.url or None
+        if doc.sections:
+            section = section_for_offset(doc.sections, match.start)
+            location_ref = format_location_ref(section, base_url=doc.url) or location_ref
         return Finding(
             title=title,
             last_update=None,
@@ -160,7 +168,7 @@ class MockProvisionExtractor:
             discovery_tag=DiscoveryTag.KNOWN,  # run.py re-stamps NEW/KNOWN
             verbatim_snippet=snippet,
             mapping_rationale=rationale,
-            location_ref=doc.url or None,
+            location_ref=location_ref,
             notes=notes,
         )
 
@@ -195,7 +203,11 @@ class MockProvisionExtractor:
                 best_distance = distance
                 best = found.group(0)
         # Normalise internal whitespace ("Section   26" -> "Section 26").
-        return re.sub(r"\s+", " ", best).strip()
+        best = re.sub(r"\s+", " ", best).strip()
+        standalone = re.match(r"^(\d+[A-Za-z]?)\.\s*[—-]$", best)
+        if standalone:
+            return f"Section {standalone.group(1)}"
+        return best
 
     def _rationale(self, keyword: str, indicator: str) -> str:
         """Templated, deterministic, <=300 chars."""

@@ -56,6 +56,30 @@ _COUNTRY_ALIASES: dict[str, str] = {
     "my": "Malaysia",
     "mys": "Malaysia",
     "malaysia": "Malaysia",
+    "cn": "China",
+    "chn": "China",
+    "china": "China",
+    "in": "India",
+    "ind": "India",
+    "india": "India",
+    "id": "Indonesia",
+    "idn": "Indonesia",
+    "indonesia": "Indonesia",
+    "la": "Lao PDR",
+    "lao": "Lao PDR",
+    "laos": "Lao PDR",
+    "lao pdr": "Lao PDR",
+    "lao people's democratic republic": "Lao PDR",
+    "mn": "Mongolia",
+    "mng": "Mongolia",
+    "mongolia": "Mongolia",
+    "ru": "Russian Federation",
+    "rus": "Russian Federation",
+    "russia": "Russian Federation",
+    "russian federation": "Russian Federation",
+    "th": "Thailand",
+    "tha": "Thailand",
+    "thailand": "Thailand",
 }
 
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
@@ -187,8 +211,13 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
     Returns ``None`` on any fetch/parse failure (logged, never raised) so one dead link
     cannot crash the run.
     """
+    from adapters.botting.scaffolds.scaffold_registry import ScaffoldRegistry
+
+    scaffold = ScaffoldRegistry().get_scaffold_for_url(url)
+    fetch_url = scaffold.get_fetch_url(url) if scaffold else url
+
     try:
-        result = fetcher.fetch_raw(url)
+        result = fetcher.fetch_raw(fetch_url)
     except Exception as exc:  # network-less / blocked / timeout — skip, don't crash
         logger.warning("fetch failed url=%s (%s); skipping", url, exc)
         return None
@@ -201,9 +230,23 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
             return CrawledDocument(url=url, economy=country, text=text, is_pdf=True)
 
         from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
+        from adapters.botting.l6_presentation.html_sections import join_section_text
 
-        text = DomCleaner().clean_html(result.text)
-        return CrawledDocument(url=url, economy=country, text=text, is_pdf=False)
+        cleaner = DomCleaner()
+        selectors = dict(scaffold.get_custom_selectors()) if scaffold else {}
+        if scaffold:
+            selectors["boilerplate"] = scaffold.get_boilerplate_selectors()
+        sections = cleaner.extract_sections(result.text, selectors)
+        text = join_section_text(sections)
+        if not text:
+            text = cleaner.clean_html(result.text, selectors)
+        return CrawledDocument(
+            url=url,
+            economy=country,
+            text=text,
+            is_pdf=False,
+            sections=tuple(sections),
+        )
     except Exception as exc:  # parse/decode failure — skip this doc
         logger.warning("parse failed url=%s (%s); skipping", url, exc)
         return None

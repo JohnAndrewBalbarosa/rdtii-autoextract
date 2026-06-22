@@ -40,12 +40,12 @@ README mandatory sections: name+desc · Setup (3–5 lines) · Run (one command)
 | ------ | ------- | --- |
 | Economy | country analysed | **Yes** |
 | Law Name | full official statute name + year | **Yes** |
-| Law Number/Ref | official act/law number | opt |
+| Law Number / Ref | official act/law number | opt |
 | Last Amended | year of most recent amendment | **Yes** |
 | Indicator ID | RDTII code, e.g. **`P6-I1`** | **Yes** |
 | Article / Section | exact article + paragraph | **Yes** |
 | Discovery Tag | **`NEW`** (independent find) / **`KNOWN`** (sample kit) | **Yes** |
-| Location Ref. | PDF: page no. \| HTML: URL anchor/path | opt |
+| Location Reference | PDF: page no. \| HTML: URL anchor/path | opt |
 | Verbatim Snippet | exact quoted text — **no paraphrasing** | **Yes** |
 | Mapping Rationale | why it maps to this indicator (≤300 chars) | opt |
 | Source URL | direct URL to law on official portal | **Yes** |

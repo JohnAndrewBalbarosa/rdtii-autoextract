@@ -126,10 +126,15 @@ def gold_to_match_item(record: GoldRecord) -> MatchItem:
 
 
 def is_match(pred: MatchItem, gold: MatchItem, act_threshold: float = DEFAULT_ACT_THRESHOLD) -> bool:
-    """A predicted row matches a gold row when, within the same pillar, either the act
-    names are close enough or they share a reference URL. Country must agree when both
-    sides declare one (predictions may omit it early in the pipeline)."""
+    """A predicted row matches gold only when the indicator label is also correct.
+
+    Within the same country/pillar/indicator, either close act names or a shared URL can
+    establish evidence identity. Requiring the indicator prevents a model from scoring
+    correct for finding the right law but assigning the wrong RDTII label.
+    """
     if pred.pillar_id != gold.pillar_id:
+        return False
+    if _canonical_indicator(pred.indicator_id) != _canonical_indicator(gold.indicator_id):
         return False
     if pred.country and gold.country and pred.country.lower() != gold.country.lower():
         return False

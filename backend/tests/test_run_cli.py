@@ -37,6 +37,13 @@ _HAS_DB = os.path.exists(os.path.join(_DOCS, "ESCAP-RDTII-2.1_ Round 1 Database.
         ("australia", "Australia"),
         ("MY", "Malaysia"),
         ("Malaysia", "Malaysia"),
+        ("CN", "China"),
+        ("India", "India"),
+        ("ID", "Indonesia"),
+        ("Laos", "Lao PDR"),
+        ("Mongolia", "Mongolia"),
+        ("Russia", "Russian Federation"),
+        ("TH", "Thailand"),
     ],
 )
 def test_resolve_country_accepts_aliases(raw, expected):
@@ -114,6 +121,24 @@ def test_limit_caps_row_count(tmp_path):
     with open(os.path.join(out_dir, "output.csv"), encoding="utf-8", newline="") as handle:
         rows = list(csv.reader(handle))
     assert len(rows) - 1 <= 2  # header + at most 2 data rows
+
+
+@pytest.mark.skipif(not _HAS_DB, reason="RDTII databases not present in docs/")
+def test_gold_run_accepts_round2_training_country(tmp_path):
+    out_dir = str(tmp_path / "out")
+    code = run.main(
+        ["--country", "TH", "--pillar", "7", "--source", "gold",
+         "--out-dir", out_dir, "--limit", "3", "--docs-dir", _DOCS]
+    )
+    assert code == 0
+    with open(os.path.join(out_dir, "output.csv"), encoding="utf-8", newline="") as handle:
+        rows = list(csv.reader(handle))
+
+    assert len(rows) > 1
+    for row in rows[1:]:
+        record = dict(zip(CSV_COLUMNS, row))
+        assert record["Economy"] == "Thailand"
+        assert record["Indicator ID"].startswith("P7-")
 
 
 @pytest.mark.skipif(not _HAS_DB, reason="RDTII databases not present in docs/")
