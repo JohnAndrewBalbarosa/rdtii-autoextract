@@ -239,10 +239,25 @@ The current algorithm has two separate jobs:
 1. Produce reviewable RDTII output rows.
 2. Match/tag legal sections efficiently for training, retrieval, and validation.
 
-It is important not to confuse this with the older concept-graph idea. The old
-complete-graph, edge-weight, theta-pruning, community-detection, FCA, and
-PageRank plan is superseded. The implemented matching substrate is now a
-tags-only `SetTrieIndex`.
+The pipeline produces **two artifacts from the shared `ConceptNode` seed**:
+
+1. a **tree** — the tags-only `SetTrieIndex`, now wired into the live path as the
+   **provision→indicator matcher** (each crawled section is tagged, then its tag-set is
+   matched by subset query against the indicator tag-definitions in
+   `core/domain/indicator_definitions.py`). This is the primary live extraction substrate;
+   the keyword `MockProvisionExtractor` is the per-document fallback.
+2. a **cluster graph** — a standalone IDF-weighted-Jaccard tag-overlap similarity graph
+   partitioned by Louvain communities (`adapters/clustering/`,
+   `core/pipeline/cluster_pipeline.py`), emitted as `clusters.json`. It is **not** converted
+   into a tree, so the old cycle-breaking complexity does not return. It also drives
+   **clustering-assisted NEW discovery**: unmatched sections co-clustered with mapped
+   (KNOWN) sections are surfaced as `discovery_candidates` for review.
+
+The old edge-weighted similarity-graph **with θ-pruning + FCA generality lattice + PageRank**
+remains superseded. The **FCA generality tree is deliberately deferred** — it is redundant
+with the fixed RDTII `Pillar → Indicator` taxonomy. AI/LLM extraction is still optional and
+sits behind the model-agnostic middleman; the live path above is fully deterministic and
+GPU-free.
 
 ### 9.1 End-to-end row-generation algorithm
 
@@ -645,6 +660,9 @@ backend/tests/test_scoring.py
 backend/tests/test_dom_sections.py
 backend/tests/test_html_sections.py
 backend/tests/test_mock_provision_extractor.py
+backend/tests/test_mock_extractor_fixes.py
+backend/tests/test_tagmatch_extractor.py
+backend/tests/test_clustering.py
 backend/tests/test_run_cli.py
 backend/tests/test_pdf_pipeline.py
 backend/tests/test_scaffold_registry.py
@@ -660,7 +678,7 @@ python -m pytest -q
 Recent known-good result:
 
 ```text
-303 passed
+328 passed
 ```
 
 ## 18. Compliance and Access Boundaries

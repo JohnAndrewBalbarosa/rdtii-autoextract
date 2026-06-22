@@ -61,6 +61,14 @@ _PILLAR_KEYWORDS: dict[int, tuple[tuple[str, str], ...]] = {
         ("localization", "6.2"),
         ("data residency", "6.2"),
         ("adequacy", "6.3"),
+        # 6.4 — contractual safeguards (SCC / BCR)
+        ("standard contractual clauses", "6.4"),
+        ("binding corporate rules", "6.4"),
+        ("contractual clauses", "6.4"),
+        # 6.5 — other lawful bases for transfer
+        ("vital interest", "6.5"),
+        ("public interest", "6.5"),
+        ("legitimate interest", "6.5"),
     ),
     # Pillar 7 — Domestic data protection
     7: (
@@ -69,6 +77,23 @@ _PILLAR_KEYWORDS: dict[int, tuple[tuple[str, str], ...]] = {
         ("data subject", "7.3"),
         ("personal data", "7.4"),
         ("processing", "7.5"),
+    ),
+}
+
+# Context guard for semantics-blind, high-frequency terms: a hit only counts if one of the
+# qualifier phrases appears within _CONTEXT_WINDOW chars of it. Stops a bare "transfer"
+# (e.g. "technology transfer") or "processing" from firing the wrong indicator. Terms not
+# listed here match unconditionally (their keyword is already specific enough).
+_CONTEXT_WINDOW = 140
+_CONTEXT_GUARDS: dict[str, tuple[str, ...]] = {
+    "transfer": (
+        "cross-border", "cross border", "overseas", "outside", "abroad", "country",
+        "territory", "beyond", "another country", "third country",
+    ),
+    "processing": ("personal data", "personal information", "data subject", "data protection"),
+    "personal data": (
+        "collect", "use", "disclos", "process", "store", "retain", "protect",
+        "consent", "transfer",
     ),
 }
 
@@ -110,10 +135,14 @@ class MockProvisionExtractor:
         pillar_enum = Pillar(pillar)
 
         findings: list[Finding] = []
+        seen_indicators: set[str] = set()  # dedup: at most one Finding per indicator per doc
         for keyword, indicator_db in keywords:
+            if indicator_db in seen_indicators:
+                continue
             match = self._first_match(text, keyword, indicator_db)
             if match is None:
                 continue
+            seen_indicators.add(indicator_db)
             findings.append(
                 self._build_finding(doc, title, pillar_enum, match)
             )
@@ -124,9 +153,18 @@ class MockProvisionExtractor:
     # ------------------------------------------------------------------
 
     def _first_match(self, text: str, keyword: str, indicator_db: str) -> _Match | None:
-        """First word-boundary occurrence of ``keyword`` (case-insensitive)."""
+        """First word-boundary occurrence of ``keyword`` that satisfies any context guard.
+
+        For guarded high-frequency terms, scan occurrences and accept the first one with a
+        qualifier phrase nearby; unguarded keywords accept the first occurrence.
+        """
         pattern = re.compile(r"\b" + re.escape(keyword) + r"\b", re.IGNORECASE)
-        hit = pattern.search(text)
+        guards = _CONTEXT_GUARDS.get(keyword)
+        hit = None
+        for candidate in pattern.finditer(text):
+            if guards is None or self._has_context(text, candidate.start(), candidate.end(), guards):
+                hit = candidate
+                break
         if hit is None:
             return None
         return _Match(
@@ -135,6 +173,12 @@ class MockProvisionExtractor:
             start=hit.start(),
             end=hit.end(),
         )
+
+    @staticmethod
+    def _has_context(text: str, start: int, end: int, qualifiers: tuple[str, ...]) -> bool:
+        """True if any qualifier phrase appears within ``_CONTEXT_WINDOW`` chars of a hit."""
+        window = text[max(0, start - _CONTEXT_WINDOW) : end + _CONTEXT_WINDOW].lower()
+        return any(qualifier in window for qualifier in qualifiers)
 
     def _build_finding(
         self,

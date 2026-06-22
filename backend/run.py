@@ -168,15 +168,19 @@ def _with_tag(finding: Finding, tag: DiscoveryTag) -> Finding:
 
 
 def _default_extractor():
-    """Default live ``ProvisionExtractor``: the deterministic mock reference adapter.
+    """Default live ``ProvisionExtractor``: tag→set-trie matcher, keyword mock as fallback.
 
-    The mock proves the crawl→extract→tag→emit plumbing offline and emits REAL verbatim
-    snippets. A real LLM extractor swaps in via the same port (``--source live`` plus a
-    custom ``extractor=`` injection) with no other code change.
+    Primary is the deterministic ``TagMatchProvisionExtractor`` — section tags matched
+    against indicator definitions via the ``SetTrieIndex`` (the documented §9 algorithm,
+    now wired to live data). When a document yields no tag matches it falls back per-document
+    to the keyword ``MockProvisionExtractor`` so the live path still produces rows. A real
+    LLM extractor can swap in behind the same port with no other code change.
     """
+    from adapters.extraction.fallback_provision_extractor import FallbackProvisionExtractor
     from adapters.extraction.mock_provision_extractor import MockProvisionExtractor
+    from adapters.extraction.tagmatch_provision_extractor import TagMatchProvisionExtractor
 
-    return MockProvisionExtractor()
+    return FallbackProvisionExtractor(TagMatchProvisionExtractor(), MockProvisionExtractor())
 
 
 def _default_fetcher():
@@ -252,22 +256,56 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
         return None
 
 
+def _nodes_from_doc(doc: CrawledDocument):
+    """Tag a crawled document's sections into ``ConceptNode``s (the cluster seed).
+
+    Section ids are URL-qualified so they stay unique across documents in the cluster graph.
+    """
+    from adapters.extraction.section_tagger import tag_section
+
+    nodes = []
+    if doc.sections:
+        for index, section in enumerate(doc.sections):
+            fragment = f"#{section.anchor}" if section.anchor else f"#sec-{index}"
+            nodes.append(
+                tag_section(
+                    section_id=f"{doc.url}{fragment}",
+                    document_url=doc.url,
+                    heading=section.heading,
+                    text=section.text,
+                    path=section.path,
+                )
+            )
+    else:
+        nodes.append(
+            tag_section(
+                section_id=doc.url or "doc",
+                document_url=doc.url,
+                heading="",
+                text=doc.text or "",
+                path=(),
+            )
+        )
+    return nodes
+
+
 def _build_live_findings(country, pillar, logger, docs_dir, fetcher, extractor):
-    """Real crawl→extract path. Returns a (possibly empty) list of Findings.
+    """Real crawl→extract path. Returns ``(findings, concept_nodes)``.
 
     Resolves seed URLs for country+pillar, fetches each (offline-safe: failures are
-    logged and skipped), builds a ``CrawledDocument`` and runs the injected
-    ``ProvisionExtractor``. With the default mock extractor this yields Findings whose
-    ``verbatim_snippet``/``article_section`` are populated from the real document text.
+    logged and skipped), builds a ``CrawledDocument``, tags its sections into
+    ``ConceptNode``s (the cluster-graph seed), and runs the injected ``ProvisionExtractor``.
     """
     seed = _seed_urls(country, pillar, docs_dir)
     logger.info("live crawl seeded with %d url(s)", len(seed))
 
     findings: list[Finding] = []
+    nodes: list = []
     for url in seed:
         doc = _crawl_one(url, country, fetcher, logger)
         if doc is None:
             continue
+        nodes.extend(_nodes_from_doc(doc))
         try:
             doc_findings = extractor.extract(doc, pillar)
         except Exception as exc:  # one bad extraction must not sink the run
@@ -275,7 +313,43 @@ def _build_live_findings(country, pillar, logger, docs_dir, fetcher, extractor):
             continue
         logger.info("extracted %d finding(s) from url=%s", len(doc_findings), url)
         findings.extend(doc_findings)
-    return findings
+    return findings, nodes
+
+
+def _write_cluster_artifact(nodes, path, logger, matched_ids=None) -> None:
+    """Build + write the cluster-graph artifact (+ clustering-assisted NEW candidates).
+
+    Empty ``nodes`` → empty artifact. ``matched_ids`` (the section ids the matcher mapped)
+    drive ``discovery_candidates``: unmatched members of a KNOWN-bearing community. Failures
+    (e.g. a missing optional clustering dep) degrade to an empty artifact and a warning so
+    the run never crashes on the secondary output.
+    """
+    from core.domain.cluster import ClusterGraph
+    from core.pipeline.cluster_pipeline import (
+        build_clusters,
+        discovery_candidates,
+        write_clusters,
+    )
+
+    graph = ClusterGraph()
+    if nodes:
+        try:
+            from adapters.clustering import LouvainCommunityDetector, TagOverlapScorer
+
+            graph = build_clusters(nodes, TagOverlapScorer(), LouvainCommunityDetector())
+        except Exception as exc:  # pragma: no cover - defensive (optional dep / bad data)
+            logger.warning("clustering failed (%s); writing empty cluster artifact", exc)
+            graph = ClusterGraph()
+
+    candidates = discovery_candidates(graph, matched_ids or set())
+    write_clusters(graph, path, candidates)
+    logger.info(
+        "clusters: %d communities, %d edges, %d discovery-candidate group(s) -> %s",
+        len(graph.communities),
+        len(graph.edges),
+        len(candidates),
+        path,
+    )
 
 
 def _configure_logger(out_dir: str) -> tuple[logging.Logger, str]:
@@ -345,10 +419,11 @@ def main(argv: list[str] | None = None, *, fetcher=None, extractor=None) -> int:
 
     source_used = args.source
     findings = None
+    concept_nodes: list = []
     if args.source == "live":
         live_fetcher = fetcher if fetcher is not None else _default_fetcher()
         live_extractor = extractor if extractor is not None else _default_extractor()
-        findings = _build_live_findings(
+        findings, concept_nodes = _build_live_findings(
             country, args.pillar, logger, args.docs_dir, live_fetcher, live_extractor
         )
         if not findings:
@@ -381,15 +456,22 @@ def main(argv: list[str] | None = None, *, fetcher=None, extractor=None) -> int:
         processing_time=processing_time,
     )
 
+    # Second artifact: the cluster graph over the crawled section seed (empty in gold mode),
+    # with clustering-assisted NEW-discovery candidates keyed off mapped section ids.
+    clusters_path = os.path.join(out_dir, "clusters.json")
+    matched_ids = {f.location_ref for f in findings if f.location_ref}
+    _write_cluster_artifact(concept_nodes, clusters_path, logger, matched_ids)
+
     new_count = sum(1 for f in findings if f.discovery_tag is DiscoveryTag.NEW)
     known_count = len(findings) - new_count
     logger.info(
-        "done rows=%d new=%d known=%d csv=%s json=%s",
+        "done rows=%d new=%d known=%d csv=%s json=%s clusters=%s",
         len(findings),
         new_count,
         known_count,
         csv_path,
         json_path,
+        clusters_path,
     )
 
     # ASCII-only summary: some Windows consoles use cp1252 and choke on non-ASCII.
