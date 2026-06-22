@@ -38,6 +38,24 @@ class ParsedDocument:
 
 
 @dataclass(frozen=True)
+class CrawledDocument:
+    """Raw input to the provision-extraction seam (Stage: crawl -> extract).
+
+    A single fetched legal document, already reduced to plain text by the transport
+    layer (HTML cleaned by ``DomCleaner`` or PDF text via ``PdfParser``). It is the
+    minimal contract a ``ProvisionExtractor`` needs — deliberately free of any web/LLM
+    type so the port stays import-clean and the mock and the real LLM extractor swap
+    behind the same struct.
+    """
+
+    url: str
+    economy: str  # country analysed, e.g. "Singapore"
+    text: str  # plain document text (HTML-cleaned or PDF-extracted)
+    is_pdf: bool = False
+    language: str = "en"  # ISO 639-1
+
+
+@dataclass(frozen=True)
 class GuideDefinition:
     """A whole-document term definition supplied by the high-context guide model."""
 

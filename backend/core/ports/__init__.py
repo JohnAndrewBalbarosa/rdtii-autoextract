@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Protocol, Sequence
 
-from core.domain.document import ParsedDocument
+from core.domain.document import CrawledDocument, ParsedDocument
 from core.domain.entities import Article, Finding
 
 
@@ -45,6 +45,18 @@ class DocumentExtractorPort(Protocol):
     """Extracts structured document entities from a given URL (R7, OSI L7 Application)."""
 
     def scrape_url(self, url: str) -> ParsedDocument: ...
+
+
+class ProvisionExtractor(Protocol):
+    """Turns one crawled legal document into article-level ``Finding``s (R4, R5, R14).
+
+    The injectable extraction seam: a deterministic mock proves the plumbing today; a
+    real LLM extractor swaps in later behind this exact signature with no core changes.
+    Implementations must be pure with respect to their input — same ``doc`` + ``pillar``
+    yields the same findings (stable ordering, no clock/randomness in the mock).
+    """
+
+    def extract(self, doc: CrawledDocument, pillar: int) -> list[Finding]: ...
 
 
 class HtmlFetcherPort(Protocol):

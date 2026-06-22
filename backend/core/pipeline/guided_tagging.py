@@ -21,7 +21,7 @@ from core.domain.document import (
     TaggingReconciliationResult,
     TaggingReviewItem,
 )
-from core.domain.graph import ConceptNode
+from core.domain.concept_node import ConceptNode
 from core.ports.extraction import (
     DocumentGuideProvider,
     GuidedSectionTagger,

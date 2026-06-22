@@ -1,5 +1,13 @@
 # Concept-Graph Pipeline
 
+> ⚠️ **SUPERSEDED (2026-06-20).** Stages 2–5 below (complete-graph edge weighting, θ-pruning,
+> community detection, FCA hierarchy, PageRank) were **removed** in favour of a tags-only
+> **`SetTrieIndex`** (`core/pipeline/set_trie.py`) — an acyclic-by-construction trie for fast
+> tag matching with branch pruning. No edges, no edge weights, no θ, no cycles. Only the
+> **tagging layer (Stage 0–1)** — captioning + multi-label tagging → `ConceptNode`
+> (`core/domain/concept_node.py`, via `adapters/extraction/structural_extractor.py`) — survives,
+> and its tagged nodes feed the set-trie. The rest of this file is kept for historical context.
+
 > The second pipeline. After the extraction pipeline produces article-level findings,
 > this layer turns law sections into a **connected concept graph** — Obsidian-style nodes
 > that cross-tag and cluster — then induces a **generality hierarchy** over them.

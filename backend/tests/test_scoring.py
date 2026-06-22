@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import date
+
+from core.domain.entities import DiscoveryTag, Finding, Pillar
 from core.pipeline.golden_dataset import GoldRecord, ReferenceItem
 from core.pipeline.scoring import (
     MatchItem,
     act_similarity,
     discovery_diff,
+    finding_to_match_item,
     is_match,
     normalize_url,
     score,
@@ -115,3 +119,52 @@ def test_discovery_excludes_reference_csv_acts():
     refs = (ReferenceItem("Australia", "Cyber Security Strategy", "", "", "https://homeaffairs.gov.au/x"),)
     pred = _item(act="Cyber Security Strategy", urls=("https://homeaffairs.gov.au/x",))
     assert discovery_diff([pred], [], refs) == []
+
+
+# --- indicator format-agnostic matching (P6-I1 ↔ 6.1) ---
+
+def _finding(indicator="P6-I1", economy="Australia", act="Privacy Act 1988", url="https://legislation.gov.au/C2004"):
+    return Finding(
+        title=act,
+        last_update=date(2024, 1, 1),
+        url=url,
+        scope="",
+        provisions="",
+        impact="",
+        pillar=Pillar.CROSS_BORDER_DATA_FLOWS,
+        indicator=indicator,
+        confidence=0.9,
+        economy=economy,
+        discovery_tag=DiscoveryTag.NEW,
+    )
+
+
+def test_finding_to_match_item_canonicalises_indicator_and_uses_economy():
+    item = finding_to_match_item(_finding(indicator="P6-I1", economy="Australia"))
+    assert item.indicator_id == "P6-I1"
+    assert item.country == "Australia"
+
+
+def test_finding_to_match_item_canonicalises_dotted_indicator():
+    item = finding_to_match_item(_finding(indicator="6.1"))
+    assert item.indicator_id == "P6-I1"
+
+
+def test_canonical_prediction_matches_dotted_gold_record():
+    # Finding with canonical "P6-I1" must score against a gold record stored as "6.1".
+    pred = _finding(indicator="P6-I1", act="Privacy Act 1988")
+    gold = [GoldRecord("Australia", 6, "6.1", "Privacy Act 1988", "", "", "", 0.5,
+                       ("https://legislation.gov.au/C2004",))]
+    report = score([pred], gold)
+    assert report.true_positives == 1
+    assert report.false_positives == 0
+    assert report.false_negatives == 0
+    assert report.f1 == 1.0
+
+
+def test_economy_falls_back_to_legacy_country_attr():
+    # A Finding-like object exposing only a legacy `country` attr (no economy set).
+    legacy = _finding(economy="")
+    object.__setattr__(legacy, "country", "Singapore")
+    item = finding_to_match_item(legacy)
+    assert item.country == "Singapore"

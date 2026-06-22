@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 
 from core.domain.document import ParsedDocument
-from core.domain.graph import ConceptNode
+from core.domain.concept_node import ConceptNode
 
 _SLUG_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 

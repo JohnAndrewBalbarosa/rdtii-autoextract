@@ -54,13 +54,20 @@ class GoldRecord:
 
     country: str
     pillar_id: int
-    indicator_id: str
+    indicator_id: str  # golden-DB dotted form, e.g. "6.1"
     act_name: str
     coverage: str  # ↔ Finding.scope
     impact: str  # ↔ Finding.impact
     timeframe: str  # ↔ Finding.last_update (raw string; not parsed to date here)
     raw_score: float | None
     urls: tuple[str, ...] = ()
+
+    @property
+    def indicator_canonical(self) -> str:
+        """The submission-form code (``6.1`` → ``P6-I1``); additive convenience only."""
+        from core.domain.indicator_codes import to_canonical
+
+        return to_canonical(self.indicator_id)
 
 
 @dataclass(frozen=True)

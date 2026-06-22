@@ -15,7 +15,7 @@ from core.domain.document import (
     SectionTaggingResult,
     SectionTaggingTask,
 )
-from core.domain.graph import ConceptNode
+from core.domain.concept_node import ConceptNode
 
 
 class SectionExtractor(Protocol):

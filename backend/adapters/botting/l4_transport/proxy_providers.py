@@ -26,6 +26,11 @@ from typing import Callable, Deque, Dict, List, Optional
 from collections import deque
 
 from adapters.botting.l4_transport.proxy_provider import ProxyEndpoint, ProxyProvider
+from adapters.botting.l4_transport.proxy_pool_broker import (
+    ProxyLease,
+    ProxyPoolBroker,
+    PoolExhausted,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +294,126 @@ class ConfiguredRotatingProxyProvider:
 
 
 # ---------------------------------------------------------------------------
+# BrokeredProxyProvider — per-thread view over a SHARED ProxyPoolBroker
+# ---------------------------------------------------------------------------
+
+class BrokeredProxyProvider:
+    """Adapter that lets per-thread HttpClients share ONE coordinated pool.
+
+    Each HttpClient keeps its own ProxyProvider, but here every instance (or, in
+    the common case, one instance shared across threads) talks to the SAME
+    ``ProxyPoolBroker``. The broker is the middleman that guarantees two workers
+    never hold the same egress IP at once, fixing the "we rotate but still look
+    like one spammy IP" problem.
+
+    Lease lifecycle is keyed by worker (thread) id: ``get()`` releases the
+    calling worker's PREVIOUS lease and acquires a fresh, non-colliding one, so
+    a crawler that calls get() once per request keeps rotating coordinated IPs
+    without ever double-booking. Call ``release()`` when a worker is done so the
+    IP returns to the pool for others.
+
+    NOTE: For rotating-residential TEMPLATE mode, a per-request unique
+    ``{session}`` token already yields a distinct exit IP per call, so
+    collisions cannot happen there — the broker is specifically for FIXED/finite
+    IP LISTS where the same handful of IPs is reused.
+    """
+
+    _DEFAULT_ACQUIRE_TIMEOUT = 30.0
+
+    def __init__(
+        self,
+        broker: ProxyPoolBroker,
+        cooldown: int = 120,
+        acquire_timeout: Optional[float] = _DEFAULT_ACQUIRE_TIMEOUT,
+        clock: Optional[Callable[[], float]] = None,
+    ) -> None:
+        self._broker = broker
+        self._cooldown_seconds = cooldown
+        self._acquire_timeout = acquire_timeout
+        self._clock: Callable[[], float] = clock or time.monotonic
+        self._lock = threading.Lock()
+        # Active lease per worker (thread) id so get() can release the previous.
+        self._active: Dict[int, ProxyLease] = {}
+        self._cooldown: Dict[str, float] = {}  # proxy_url -> ban expiry
+
+    def _worker_id(self, worker_id: Optional[int]) -> int:
+        return worker_id if worker_id is not None else threading.get_ident()
+
+    def get(self, worker_id: Optional[int] = None) -> Optional[ProxyEndpoint]:
+        """Release this worker's previous lease, acquire a fresh coordinated IP.
+
+        Returns None only if the underlying pool is empty / everything timed out
+        — the caller (HttpClient) then falls back to a direct connection.
+        """
+        wid = self._worker_id(worker_id)
+        with self._lock:
+            prev = self._active.pop(wid, None)
+        if prev is not None:
+            self._broker.release(prev)
+
+        # Skip endpoints still serving a ban cooldown by re-leasing past them.
+        attempts = max(self._broker.size, 1)
+        lease: Optional[ProxyLease] = None
+        for _ in range(attempts):
+            try:
+                candidate = self._broker.acquire(
+                    worker_id=wid, timeout=self._acquire_timeout
+                )
+            except PoolExhausted:
+                return None
+            if not self._is_cooled_down(candidate.endpoint):
+                lease = candidate
+                break
+            # Cooled-down: hold nothing, release and try the next distinct IP.
+            self._broker.release(candidate)
+        if lease is None:
+            return None
+        with self._lock:
+            self._active[wid] = lease
+        return lease.endpoint
+
+    def release(self, worker_id: Optional[int] = None) -> None:
+        """Return the calling worker's leased IP to the shared pool."""
+        wid = self._worker_id(worker_id)
+        with self._lock:
+            lease = self._active.pop(wid, None)
+        if lease is not None:
+            self._broker.release(lease)
+
+    def report(self, endpoint: ProxyEndpoint, ok: bool) -> None:
+        """Cool a bad IP so subsequent get() calls skip it for a while."""
+        if not ok:
+            with self._lock:
+                self._cooldown[endpoint.as_url()] = (
+                    self._clock() + self._cooldown_seconds
+                )
+
+    def rotate(self) -> None:
+        """Drop the current worker's lease so the next get() picks a new IP."""
+        self.release()
+
+    def reset(self, worker_id: Optional[int] = None) -> None:
+        """Recycle a worker: release its lease and clear its broker history.
+
+        Passthrough to ``ProxyPoolBroker.reset`` so the worker becomes "fresh,
+        like new" and can rotate the FULL pool again on its next get()/acquire.
+        """
+        wid = self._worker_id(worker_id)
+        # Return any held IP first so reset truly starts a clean cycle.
+        self.release(wid)
+        self._broker.reset(wid)
+
+    def record_use(self, endpoint: ProxyEndpoint) -> None:  # pragma: no cover
+        # The broker already records last_used at acquire-time; nothing to do.
+        pass
+
+    def _is_cooled_down(self, endpoint: ProxyEndpoint) -> bool:
+        with self._lock:
+            expiry = self._cooldown.get(endpoint.as_url(), 0.0)
+        return self._clock() < expiry
+
+
+# ---------------------------------------------------------------------------
 # SimulatedProxyProvider — wraps ThreadedProxyServer (deterministic tests)
 # ---------------------------------------------------------------------------
 
@@ -349,8 +474,9 @@ def proxy_provider_from_config(config: Optional[dict] = None) -> ProxyProvider:
     """Return the right ProxyProvider based on PROXY_MODE in *config* or env.
 
     config keys (all optional):
-      PROXY_MODE      : none | free | configured | simulated  (default: none)
-      PROXY_LIST      : comma-separated proxy URLs (for 'configured')
+      PROXY_MODE      : none | free | configured | brokered | simulated  (default: none)
+      PROXY_COORDINATED : 1/true -> force brokered mode regardless of PROXY_MODE
+      PROXY_LIST      : comma-separated proxy URLs (for 'configured' / 'brokered')
       PROXY_TEMPLATE  : URL template with {session} (for 'configured')
       PROXY_SEED      : int seed for deterministic rotation (for 'configured')
       PROXY_COOLDOWN  : seconds to cool-down a banned endpoint (default 120)
@@ -366,6 +492,16 @@ def proxy_provider_from_config(config: Optional[dict] = None) -> ProxyProvider:
         return cfg.get(key) or os.environ.get(key, default)
 
     mode = _get("PROXY_MODE", "none").lower().strip()
+    coordinated = _get("PROXY_COORDINATED", "").strip().lower() in {"1", "true", "yes"}
+
+    # Coordinated/brokered mode: one shared ProxyPoolBroker hands out
+    # non-colliding IPs to all parallel workers over the FIXED PROXY_LIST.
+    if mode == "brokered" or coordinated:
+        raw_list_str = _get("PROXY_LIST", "")
+        proxy_list = [p.strip() for p in raw_list_str.split(",") if p.strip()] if raw_list_str else []
+        cooldown = int(_get("PROXY_COOLDOWN", "120"))
+        broker = ProxyPoolBroker(proxy_list)
+        return BrokeredProxyProvider(broker, cooldown=cooldown)
 
     if mode == "free":
         return FreeProxyProvider()

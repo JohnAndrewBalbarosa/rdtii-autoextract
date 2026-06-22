@@ -61,6 +61,24 @@ ban should rarely be reached. This is **best-effort on a sufficiently large pool
 guarantee**: a tiny pool under high volume can still exceed a site's tolerance. A per-domain
 throttle enforces a minimum gap between hits to the same host.
 
+**Parallel-crawl coordination (the middleman):** when many crawlers run in parallel
+(threads/async in one process), independent rotation can make two workers grab the same IP at
+once — a site then sees repeated hits from one IP. A central `ProxyPoolBroker` is the single
+source of truth for a fixed/finite pool: each IP has a stable index via a hash map
+(`_index_of`, O(1) — not a linear/radix scan), an `in_use` flag (so no two workers hold the
+same IP simultaneously), and a per-worker usage bitmap (so one worker won't reuse an IP until
+it has cycled the pool). `acquire(worker_id)` leases the longest-idle free IP, blocking up to a
+timeout when the pool is momentarily occupied; `release()` frees it; a `lease()` context manager
+makes `with broker.lease() as ep:` safe. When the pool is momentarily exhausted, waiters join a
+**FIFO queue** and a released IP is **handed directly** to the first queued worker that has not
+already used it (a worker that already used the freed IP is skipped, never handed a duplicate);
+`reset(worker_id)` — and auto-reset once a worker has cycled the whole pool — starts its rotation
+fresh. `BrokeredProxyProvider`
+(`PROXY_MODE=brokered` / `PROXY_COORDINATED=1`) lets per-thread `HttpClient`s share coordinated
+IPs. Verified by a stress probe: 8 threads × 100 leases over a 4-IP pool → **max 1 concurrent
+holder per IP, 0 collisions**. (Rotating-residential TEMPLATE mode is already collision-free via
+per-request `{session}`, so the broker targets fixed/finite lists.)
+
 **Header realism:** realistic browser UA + `Accept` / `Accept-Language` / `Accept-Encoding`
 / `DNT` / `Upgrade-Insecure-Requests`. **Proven:** `sso.agc.gov.sg`, previously 403 on a bare
 request, now returns HTTP 200.

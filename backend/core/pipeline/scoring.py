@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass
 
 from core.domain.entities import Finding
+from core.domain.indicator_codes import to_canonical
 from core.pipeline.golden_dataset import GoldRecord, ReferenceItem
 
 # Tuned defaults; calibrate against the gold data rather than trusting these blindly.
@@ -84,18 +85,33 @@ def _url_overlap(a: tuple[str, ...], b: tuple[str, ...]) -> bool:
     return bool(na & nb)
 
 
+def _canonical_indicator(code: str) -> str:
+    """Best-effort canonicalisation (``6.1`` / ``P6-I1`` → ``P6-I1``).
+
+    Indicator format must not gate matching, so a malformed code degrades to its raw
+    (whitespace-stripped) value rather than raising — the pillar/act/url rule still applies.
+    """
+    try:
+        return to_canonical(code)
+    except ValueError:
+        return code.strip() if isinstance(code, str) else ""
+
+
 def finding_to_match_item(finding: Finding) -> MatchItem:
     return MatchItem(
-        country=_country_of(finding),
+        country=_economy_of(finding),
         pillar_id=finding.pillar.value,
-        indicator_id=finding.indicator,
+        indicator_id=_canonical_indicator(finding.indicator),
         act_name=finding.title,
         urls=(finding.url,) if finding.url else (),
     )
 
 
-def _country_of(finding: Finding) -> str:
-    """Findings carry country in metadata-free form; fall back to empty when absent."""
+def _economy_of(finding: Finding) -> str:
+    """Prefer the Round-1 ``economy`` field; fall back to a legacy ``country`` attr."""
+    economy = getattr(finding, "economy", "") or ""
+    if economy:
+        return economy
     return getattr(finding, "country", "") or ""
 
 
@@ -103,7 +119,7 @@ def gold_to_match_item(record: GoldRecord) -> MatchItem:
     return MatchItem(
         country=record.country,
         pillar_id=record.pillar_id,
-        indicator_id=record.indicator_id,
+        indicator_id=_canonical_indicator(record.indicator_id),
         act_name=record.act_name,
         urls=record.urls,
     )
