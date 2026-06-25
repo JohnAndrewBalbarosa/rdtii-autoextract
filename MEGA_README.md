@@ -175,16 +175,29 @@ HTML is not automatically bounded. A page may contain:
 The current implementation reduces that risk by:
 
 - applying site-specific scaffolds for known portals
-- removing boilerplate elements
+- removing boilerplate elements; dropping short SPA UI-chrome blocks (tabs, dropdowns,
+  menus) while keeping any block with substantial text
 - targeting legal content containers
 - extracting section-level text with anchors/paths
 - using those anchors/paths for `Location Reference`
+- **gating on a legislative-content detector** (`core/pipeline/legislation_detector.py`):
+  a page that is not statute/regulation text (news, landing pages, job ads) is skipped, so
+  non-law HTML never produces findings. This directly answers "is this page actually law?"
+- **dynamic (JS) rendering for SPA portals**: `TransportFactory` switches to a headless
+  Playwright engine when the static HTML is an unrendered SPA shell or a scaffold declares
+  the domain dynamic; the browser auto-expands collapsed accordions ("Expand all") so
+  lazy-rendered provision text (e.g. legislation.gov.au) is captured. If static extraction
+  yields nothing legislative, a one-shot dynamic retry runs. Live SPA rendering requires a
+  browser binary: `playwright install chromium`.
 
 Relevant modules:
 
 ```text
 backend/adapters/botting/l6_presentation/dom_cleaner.py
 backend/adapters/botting/l6_presentation/html_sections.py
+backend/adapters/botting/l4_transport/factory.py
+backend/adapters/botting/l4_transport/playwright_client.py
+backend/core/pipeline/legislation_detector.py
 backend/adapters/botting/scaffolds/
 ```
 
@@ -192,10 +205,16 @@ Known scaffolds:
 
 ```text
 homeaffairs.gov.au
-sso.agc.gov.sg
+sso.agc.gov.sg          # routes statute URLs to clean PDFs
 pdpc.gov.sg
 pdp.gov.my
+legislation.gov.au      # AU federal register — dynamic SPA, /latest/text view
 ```
+
+Practical behavior verified against the `/docs` inventories (Round 1 AU/SG/MY):
+SG legislation is fetched as clean PDF via the SSO scaffold; AU legislation.gov.au renders
+dynamically (accordions expanded) into legislative text; non-statutory portal/landing pages
+(e.g. a regulator's news page) are correctly skipped by the legislative gate.
 
 ## 7. Site Scaffold Role
 
@@ -663,6 +682,11 @@ backend/tests/test_mock_provision_extractor.py
 backend/tests/test_mock_extractor_fixes.py
 backend/tests/test_tagmatch_extractor.py
 backend/tests/test_clustering.py
+backend/tests/test_legislation_detector.py
+backend/tests/test_dom_chrome_filter.py
+backend/tests/test_transport_dynamic.py
+backend/tests/test_legislation_scaffold.py
+backend/tests/test_crawl_html_gating.py
 backend/tests/test_run_cli.py
 backend/tests/test_pdf_pipeline.py
 backend/tests/test_scaffold_registry.py
@@ -678,7 +702,7 @@ python -m pytest -q
 Recent known-good result:
 
 ```text
-328 passed
+348 passed
 ```
 
 ## 18. Compliance and Access Boundaries

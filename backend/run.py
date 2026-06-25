@@ -184,14 +184,20 @@ def _default_extractor():
 
 
 def _default_fetcher():
-    """Default live fetcher: the real ``HttpClient`` (an ``HtmlFetcherPort`` with fetch_raw).
+    """Default live fetcher: a ``TransportFactory`` (static ``HttpClient`` + dynamic Playwright).
 
-    Any object exposing ``fetch_raw(url) -> FetchResult`` is acceptable; tests inject a
-    fake so the live path runs offline.
+    Static fetch is tried first; the factory switches to the JS-rendering engine for SPA
+    shells (Angular/React/Next markers + sparse visible text). ``fetch_raw_dynamic`` is also
+    used when a scaffold declares a domain dynamic or when static extraction yields nothing
+    legislative. Live JS rendering needs a browser binary (``playwright install chromium``);
+    without it the dynamic engine fails gracefully and the run falls back. Tests inject a fake
+    fetcher so the live path runs offline.
     """
+    from adapters.botting.l4_transport.factory import TransportFactory
     from adapters.botting.l4_transport.http_client import HttpClient
+    from adapters.botting.l4_transport.playwright_client import PlaywrightClient
 
-    return HttpClient()
+    return TransportFactory(HttpClient(), PlaywrightClient())
 
 
 def _seed_urls(country: str, pillar: int, docs_dir: str | None = None) -> list[str]:
@@ -219,9 +225,15 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
 
     scaffold = ScaffoldRegistry().get_scaffold_for_url(url)
     fetch_url = scaffold.get_fetch_url(url) if scaffold else url
+    transport = scaffold.get_transport_type() if scaffold else "auto"
 
+    # Scaffold declares the domain a JS-rendered SPA → prefer the dynamic engine up front.
+    use_dynamic_first = transport == "dynamic" and hasattr(fetcher, "fetch_raw_dynamic")
     try:
-        result = fetcher.fetch_raw(fetch_url)
+        if use_dynamic_first:
+            result = fetcher.fetch_raw_dynamic(fetch_url)
+        else:
+            result = fetcher.fetch_raw(fetch_url)
     except Exception as exc:  # network-less / blocked / timeout — skip, don't crash
         logger.warning("fetch failed url=%s (%s); skipping", url, exc)
         return None
@@ -235,15 +247,42 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
 
         from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
         from adapters.botting.l6_presentation.html_sections import join_section_text
+        from core.pipeline.legislation_detector import is_legislative
 
         cleaner = DomCleaner()
         selectors = dict(scaffold.get_custom_selectors()) if scaffold else {}
         if scaffold:
             selectors["boilerplate"] = scaffold.get_boilerplate_selectors()
-        sections = cleaner.extract_sections(result.text, selectors)
-        text = join_section_text(sections)
-        if not text:
-            text = cleaner.clean_html(result.text, selectors)
+
+        def _extract(res):
+            secs = cleaner.extract_sections(res.text, selectors)
+            txt = join_section_text(secs) or cleaner.clean_html(res.text, selectors)
+            return secs, txt
+
+        sections, text = _extract(result)
+
+        # Outcome-driven dynamic retry: static content is empty or not legislative, and a
+        # JS-rendering engine is available (and we did not already render dynamically).
+        if (
+            not use_dynamic_first
+            and not is_legislative(text)
+            and hasattr(fetcher, "fetch_raw_dynamic")
+        ):
+            try:
+                dyn = fetcher.fetch_raw_dynamic(fetch_url)
+                dyn_sections, dyn_text = _extract(dyn)
+                if is_legislative(dyn_text) or len(dyn_text) > len(text):
+                    result, sections, text = dyn, dyn_sections, dyn_text
+                    logger.info("dynamic retry improved content url=%s len=%d", url, len(text))
+            except Exception as exc:
+                logger.warning("dynamic retry failed url=%s (%s)", url, exc)
+
+        # Boundary guard: a page that is not legislation (news/landing/job ads) is skipped,
+        # so non-statutory HTML never yields findings. PDFs are never gated (the file is law).
+        if not is_legislative(text):
+            logger.info("skip non-legislative HTML url=%s (chars=%d)", url, len(text))
+            return None
+
         return CrawledDocument(
             url=url,
             economy=country,

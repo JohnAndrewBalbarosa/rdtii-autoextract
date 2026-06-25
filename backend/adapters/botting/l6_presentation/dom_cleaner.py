@@ -1,6 +1,22 @@
+import re
+
 from bs4 import BeautifulSoup
 
 from core.domain.document import HtmlSection
+
+# UI-chrome heuristics: drop SHORT blocks that are clearly SPA navigation/widgets, while
+# keeping any block with substantial text (real statute text never looks like these).
+_NAV_STOPWORDS = {
+    "text", "details", "authorises", "downloads", "all versions", "interactions",
+    "menu", "search", "home", "login", "sign in", "contact us", "share",
+    "skip to content", "breadcrumb", "navigation", "print", "feedback", "citation change",
+}
+_CHROME_ANCHOR_RE = re.compile(
+    r"(tab|dropdown|accordion|carousel|modal|cookie|breadcrumb|navbar|menu|skip|toolbar)",
+    re.IGNORECASE,
+)
+_MIN_CONTENT_CHARS_FOR_CHROME = 200  # below this a nav-looking block is treated as chrome
+
 
 class DomCleaner:
     """OSI Layer 6 (Presentation): Translates raw HTML bytes/strings into clean, readable text."""
@@ -62,7 +78,9 @@ class DomCleaner:
 
         def emit_current() -> None:
             text = "\n".join(part for part in current_text if part)
-            if current_heading or text:
+            if (current_heading or text) and not self._is_ui_chrome(
+                current_heading, text, current_anchor
+            ):
                 sections.append(
                     HtmlSection(
                         heading=current_heading,
@@ -188,3 +206,17 @@ class DomCleaner:
 
     def _has_nested_standard_block(self, element) -> bool:
         return element.find(["h1", "h2", "h3", "h4", "p", "li"]) is not None
+
+    def _is_ui_chrome(self, heading: str, text: str, anchor: str | None) -> bool:
+        """True for SHORT SPA nav/widget blocks (tabs, dropdowns, menus) — never real text.
+
+        Length-gated: a block with substantial text is kept even if its anchor looks like a
+        widget id (e.g. the legislation.gov.au text panel lives in an ``ngb-nav-*-panel``).
+        """
+        if len(text or "") >= _MIN_CONTENT_CHARS_FOR_CHROME:
+            return False
+        if (heading or "").strip().lower() in _NAV_STOPWORDS:
+            return True
+        if anchor and _CHROME_ANCHOR_RE.search(anchor):
+            return True
+        return False
