@@ -189,6 +189,14 @@ The current implementation reduces that risk by:
   lazy-rendered provision text (e.g. legislation.gov.au) is captured. If static extraction
   yields nothing legislative, a one-shot dynamic retry runs. Live SPA rendering requires a
   browser binary: `playwright install chromium`.
+- **link-following crawl (index → article pages)**: a seed that is an HTML index/landing
+  page is mined for its **article links** (`_discover_article_links` in `run.py`) and those
+  pages are then fetched and extracted — so the actual law/article pages and their sections
+  (with content) are reached even when the seed is just a list of laws. A non-legislative
+  index contributes no findings itself but is still followed. The crawl is bounded
+  (`_MAX_CRAWL_PAGES`, `_MAX_LINKS_PER_PAGE`, `_MAX_CRAWL_DEPTH`), stays on the seed's domain,
+  and **follows HTML links only — PDF and off-domain links are not followed**. Section
+  content flows into each `Finding.verbatim_snippet`.
 
 Relevant modules:
 
@@ -598,6 +606,22 @@ cd backend
 python run_validation.py
 ```
 
+See exactly what the AI scrapes (developer-only, real Chrome):
+
+```powershell
+cd backend
+python -m tools.inspect_dom --url "https://www.legislation.gov.au/..."
+```
+
+Opens an actual Chrome window (with DevTools) and **deletes everything on the page except
+the content the AI scrapes** — what remains rendered is the literal scrape output, one view,
+nothing to filter. It also prints the scrape summary (section + char counts). Add
+`--headless --out scrape.html` to capture the pruned HTML without a window, or `--no-scaffold`
+for generic cleaning. The keep/delete decision is produced by `DomCleaner.annotate_html`, the
+*same* logic the headless production pipeline runs — so what you verify here is exactly what
+ships; there is no second implementation to drift. Dev-only: `backend/tools/` is not imported
+by the production pipeline.
+
 ## 13. Output Files
 
 The CLI writes:
@@ -746,6 +770,9 @@ backend/docs/SCRAPING_STRATEGY.md
   boundaries.
 - Keep `MEGA_README.md` aligned with `set_trie.py`; do not describe the old
   graph/PageRank/FCA plan as the current algorithm.
+- For agent-assisted work, delegate by layer using the project subagent roster in
+  `.claude/agents/` (`zx-scraper`, `zx-pipeline`, `zx-frontend`) — one domain per
+  dispatch, conclusions not file dumps. See `.claude/agents/README.md`.
 
 ## 21. License
 

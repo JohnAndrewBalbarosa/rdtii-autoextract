@@ -27,7 +27,9 @@ import os
 import re
 import sys
 import time
+from collections import deque, namedtuple
 from datetime import date
+from urllib.parse import urljoin, urlparse
 
 # Make `from core...` / `from adapters...` resolve when run as a plain script from any cwd.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -215,11 +217,28 @@ def _seed_urls(country: str, pillar: int, docs_dir: str | None = None) -> list[s
     return urls
 
 
-def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | None:
-    """Fetch ``url`` and reduce it to a ``CrawledDocument`` (PDF or cleaned HTML).
+# A fetched-and-cleaned page. ``doc`` is the law CrawledDocument when the page is statutory
+# (or a PDF); ``html`` is the raw markup kept even for non-legislative pages so an index can
+# still surface its article links.
+_Page = namedtuple("_Page", "url scaffold html doc")
 
-    Returns ``None`` on any fetch/parse failure (logged, never raised) so one dead link
-    cannot crash the run.
+# HTML article links are followed; PDF/off-domain are not. Generic default when a domain has
+# no scaffold so plain HTML law sites still crawl.
+_DEFAULT_ARTICLE_LINK_SELECTOR = "main a, article a, #content a, .content a"
+
+# Bounds keep the crawl polite and finite on large government registers.
+_MAX_CRAWL_PAGES = 25
+_MAX_LINKS_PER_PAGE = 15
+_MAX_CRAWL_DEPTH = 1  # seed (index) -> its article pages
+
+
+def _fetch_clean(url: str, country: str, fetcher, logger) -> _Page | None:
+    """Fetch ``url``, clean it, and classify it without discarding navigational HTML.
+
+    Returns a ``_Page`` carrying the raw HTML (for link discovery) and a ``CrawledDocument``
+    in ``doc`` when the page is statutory (or a PDF). A non-legislative HTML page yields
+    ``doc=None`` but keeps ``html`` so its links can still be followed. Returns ``None`` only
+    on a fetch failure (logged, never raised) so one dead link cannot crash the run.
     """
     from adapters.botting.scaffolds.scaffold_registry import ScaffoldRegistry
 
@@ -243,7 +262,8 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
             from adapters.botting.l4_transport.pdf_parser import PdfParser
 
             text = PdfParser().extract_text(result.body)
-            return CrawledDocument(url=url, economy=country, text=text, is_pdf=True)
+            doc = CrawledDocument(url=url, economy=country, text=text, is_pdf=True)
+            return _Page(url=url, scaffold=scaffold, html=None, doc=doc)
 
         from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
         from adapters.botting.l6_presentation.html_sections import join_section_text
@@ -277,22 +297,123 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
             except Exception as exc:
                 logger.warning("dynamic retry failed url=%s (%s)", url, exc)
 
-        # Boundary guard: a page that is not legislation (news/landing/job ads) is skipped,
-        # so non-statutory HTML never yields findings. PDFs are never gated (the file is law).
-        if not is_legislative(text):
-            logger.info("skip non-legislative HTML url=%s (chars=%d)", url, len(text))
-            return None
+        try:
+            raw_html = result.text
+        except Exception:
+            raw_html = None
 
-        return CrawledDocument(
+        # Boundary guard: a page that is not legislation (news/landing/index) yields no law
+        # doc, but its HTML is kept so the crawler can still follow its links to real statutes.
+        if not is_legislative(text):
+            logger.info("non-legislative HTML url=%s (chars=%d); links only", url, len(text))
+            return _Page(url=url, scaffold=scaffold, html=raw_html, doc=None)
+
+        doc = CrawledDocument(
             url=url,
             economy=country,
             text=text,
             is_pdf=False,
             sections=tuple(sections),
         )
+        return _Page(url=url, scaffold=scaffold, html=raw_html, doc=doc)
     except Exception as exc:  # parse/decode failure — skip this doc
         logger.warning("parse failed url=%s (%s); skipping", url, exc)
         return None
+
+
+def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | None:
+    """Fetch ``url`` and reduce it to a law ``CrawledDocument`` (PDF or statutory HTML).
+
+    Thin gated wrapper over :func:`_fetch_clean`: non-legislative HTML returns ``None``.
+    """
+    page = _fetch_clean(url, country, fetcher, logger)
+    return page.doc if page else None
+
+
+def _discover_article_links(html: str | None, scaffold, base_url: str) -> list[str]:
+    """Same-domain, non-PDF article links found in ``html``, resolved to absolute URLs.
+
+    Off-domain links, PDFs, fragments-only self-links and duplicates are dropped so the
+    crawl stays on the law portal and never wanders or loops.
+    """
+    if not html:
+        return []
+    from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
+
+    selector = _DEFAULT_ARTICLE_LINK_SELECTOR
+    if scaffold:
+        custom = scaffold.get_custom_selectors() or {}
+        if custom.get("article_links"):
+            selector = custom["article_links"]
+
+    found = DomCleaner().discover_links(html, {"article_links": selector}).get("article_links", [])
+    base_host = urlparse(base_url).netloc
+    self_url = base_url.split("#", 1)[0]
+
+    links: list[str] = []
+    seen: set[str] = set()
+    for href in found:
+        if not href:
+            continue
+        absolute = urljoin(base_url, href).split("#", 1)[0]
+        parsed = urlparse(absolute)
+        if parsed.scheme not in ("http", "https"):
+            continue
+        if parsed.netloc != base_host:  # stay on the seed's domain
+            continue
+        if absolute.lower().endswith(".pdf"):  # HTML only — no PDF
+            continue
+        if absolute == self_url or absolute in seen:
+            continue
+        seen.add(absolute)
+        links.append(absolute)
+    return links
+
+
+def _crawl_site(
+    seeds: list[str],
+    country: str,
+    fetcher,
+    logger,
+    *,
+    max_pages: int = _MAX_CRAWL_PAGES,
+    max_depth: int = _MAX_CRAWL_DEPTH,
+) -> list[CrawledDocument]:
+    """Bounded breadth-first crawl: follow each seed's article links to the real law pages.
+
+    A non-legislative seed (an index/landing page) contributes no law doc but is mined for
+    links. Visited URLs, a per-page link cap and a total-page cap keep the crawl finite.
+    """
+    visited: set[str] = set()
+    queue: deque[tuple[str, int]] = deque((seed, 0) for seed in seeds)
+    docs: list[CrawledDocument] = []
+
+    while queue and len(visited) < max_pages:
+        url, depth = queue.popleft()
+        normalized = url.split("#", 1)[0]
+        if normalized in visited:
+            continue
+        visited.add(normalized)
+
+        page = _fetch_clean(url, country, fetcher, logger)
+        if page is None:
+            continue
+        if page.doc is not None:
+            docs.append(page.doc)
+
+        if page.html and depth < max_depth:
+            added = 0
+            for link in _discover_article_links(page.html, page.scaffold, url):
+                if link in visited:
+                    continue
+                queue.append((link, depth + 1))
+                added += 1
+                if added >= _MAX_LINKS_PER_PAGE:
+                    break
+
+    if queue and len(visited) >= max_pages:
+        logger.info("crawl page cap reached (%d); %d url(s) left unvisited", max_pages, len(queue))
+    return docs
 
 
 def _nodes_from_doc(doc: CrawledDocument):
@@ -340,17 +461,15 @@ def _build_live_findings(country, pillar, logger, docs_dir, fetcher, extractor):
 
     findings: list[Finding] = []
     nodes: list = []
-    for url in seed:
-        doc = _crawl_one(url, country, fetcher, logger)
-        if doc is None:
-            continue
+    # Follow each seed's article links to the real law pages (index → statutes), then extract.
+    for doc in _crawl_site(seed, country, fetcher, logger):
         nodes.extend(_nodes_from_doc(doc))
         try:
             doc_findings = extractor.extract(doc, pillar)
         except Exception as exc:  # one bad extraction must not sink the run
-            logger.warning("extract failed url=%s (%s); skipping", url, exc)
+            logger.warning("extract failed url=%s (%s); skipping", doc.url, exc)
             continue
-        logger.info("extracted %d finding(s) from url=%s", len(doc_findings), url)
+        logger.info("extracted %d finding(s) from url=%s", len(doc_findings), doc.url)
         findings.extend(doc_findings)
     return findings, nodes
 

@@ -1,6 +1,7 @@
 import re
 
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 
 from core.domain.document import HtmlSection
 
@@ -53,65 +54,73 @@ class DomCleaner:
         self._strip_boilerplate(soup, selectors.get("boilerplate") if selectors else None)
         main_content = self._content_area(soup, selectors)
 
-        selected_ids: set[int] = set()
-        if selectors and selectors.get("sections"):
+        elements = self._collect_block_elements(main_content, selectors)
+        groups = self._group_elements(elements)
+        return [
+            HtmlSection(
+                heading=group["heading"],
+                text=group["text"],
+                anchor=group["anchor"],
+                path=group["path"],
+            )
+            for group in groups
+            if self._group_is_kept(group)
+        ]
+
+    def annotate_html(self, html_content: str, selectors: dict | None = None) -> str:
+        """Mark — instead of remove — the elements the AI reads, for the dev inspector.
+
+        Single source of truth: this reuses the exact collection/grouping/chrome logic of
+        ``extract_sections`` so the headful inspector shows precisely what the headless
+        production path keeps. Survivors get ``data-zx-keep="1"`` (plus ``data-zx-anchor`` /
+        ``data-zx-path`` when known); discards get ``data-zx-drop="<reason>"``.
+        """
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        boiler_ids: set[int] = set()
+        extra = selectors.get("boilerplate") if selectors else None
+        for selector in self._boilerplate_selectors(extra):
             try:
-                selected_ids = {id(element) for element in main_content.select(selectors["sections"])}
+                matches = list(soup.select(selector))
             except Exception:
-                selected_ids = set()
-
-        elements = []
-        block_tags = {"h1", "h2", "h3", "h4", "p", "li"}
-        for element in main_content.find_all(True):
-            name = (element.name or "").lower()
-            is_standard_block = name in block_tags
-            is_custom_block = id(element) in selected_ids and not self._has_nested_standard_block(element)
-            if is_standard_block or is_custom_block:
-                elements.append(element)
-
-        sections: list[HtmlSection] = []
-        heading_stack: list[tuple[int, str]] = []
-        current_heading = ""
-        current_anchor: str | None = None
-        current_path: tuple[str, ...] = ()
-        current_text: list[str] = []
-
-        def emit_current() -> None:
-            text = "\n".join(part for part in current_text if part)
-            if (current_heading or text) and not self._is_ui_chrome(
-                current_heading, text, current_anchor
-            ):
-                sections.append(
-                    HtmlSection(
-                        heading=current_heading,
-                        text=text,
-                        anchor=current_anchor,
-                        path=current_path,
-                    )
-                )
-
-        for element in elements:
-            text = element.get_text(" ", strip=True)
-            if not text:
                 continue
-            name = (element.name or "").lower()
-            if name in {"h1", "h2", "h3", "h4"}:
-                emit_current()
-                level = int(name[1])
-                heading_stack = [(stack_level, value) for stack_level, value in heading_stack if stack_level < level]
-                heading_stack.append((level, text))
-                current_heading = text
-                current_anchor = self._nearest_anchor(element)
-                current_path = tuple(value for _, value in heading_stack)
-                current_text = []
-            else:
-                if not current_heading and not current_text:
-                    current_anchor = self._nearest_anchor(element)
-                    current_path = ()
-                current_text.append(text)
+            for element in matches:
+                element["data-zx-drop"] = "boilerplate"
+                boiler_ids.add(id(element))
+                for descendant in element.find_all(True):
+                    boiler_ids.add(id(descendant))
 
-        emit_current()
-        return sections
+        main_content = self._content_area(soup, selectors)
+        elements = [
+            element
+            for element in self._collect_block_elements(main_content, selectors)
+            if id(element) not in boiler_ids
+        ]
+
+        for group in self._group_elements(elements):
+            kept = self._group_is_kept(group)
+            path_label = " › ".join(group["path"]) if group["path"] else ""
+            for member in group["members"]:
+                if kept:
+                    member["data-zx-keep"] = "1"
+                    anchor = self._nearest_anchor(member)
+                    if anchor:
+                        member["data-zx-anchor"] = anchor
+                    if path_label:
+                        member["data-zx-path"] = path_label
+                else:
+                    member["data-zx-drop"] = "chrome"
+
+        # Standard block tags the grouping never reached (outside the content area) are
+        # content the AI ignores — mark them so the inspector can dim them with a reason.
+        for element in soup.find_all(["h1", "h2", "h3", "h4", "p", "li"]):
+            if id(element) in boiler_ids:
+                continue
+            if element.get("data-zx-keep") or element.get("data-zx-drop"):
+                continue
+            element["data-zx-drop"] = "outside-content"
+
+        return str(soup)
 
     def discover_links(self, html_content: str, selectors: dict[str, str]) -> dict[str, list[str]]:
         """Extracts PDF and internal article links based on the provided selectors."""
@@ -162,7 +171,8 @@ class DomCleaner:
                 return match
         return None
 
-    def _strip_boilerplate(self, soup, extra_selectors=None) -> None:
+    def _boilerplate_selectors(self, extra_selectors: str | list[str] | None = None) -> list[str]:
+        """The single boilerplate selector list shared by stripping and annotating."""
         selectors = [
             "script",
             "style",
@@ -180,8 +190,10 @@ class DomCleaner:
             selectors.append(extra_selectors)
         elif extra_selectors:
             selectors.extend(extra_selectors)
+        return selectors
 
-        for selector in selectors:
+    def _strip_boilerplate(self, soup, extra_selectors=None) -> None:
+        for selector in self._boilerplate_selectors(extra_selectors):
             try:
                 matches = list(soup.select(selector))
             except Exception:
@@ -206,6 +218,70 @@ class DomCleaner:
 
     def _has_nested_standard_block(self, element) -> bool:
         return element.find(["h1", "h2", "h3", "h4", "p", "li"]) is not None
+
+    def _collect_block_elements(self, main_content: Tag, selectors: dict | None) -> list[Tag]:
+        """Ordered legal-content block elements: standard tags plus custom-selected leaves."""
+        selected_ids: set[int] = set()
+        if selectors and selectors.get("sections"):
+            try:
+                selected_ids = {id(element) for element in main_content.select(selectors["sections"])}
+            except Exception:
+                selected_ids = set()
+
+        block_tags = {"h1", "h2", "h3", "h4", "p", "li"}
+        elements = []
+        for element in main_content.find_all(True):
+            name = (element.name or "").lower()
+            is_standard_block = name in block_tags
+            is_custom_block = id(element) in selected_ids and not self._has_nested_standard_block(element)
+            if is_standard_block or is_custom_block:
+                elements.append(element)
+        return elements
+
+    def _group_elements(self, elements: list[Tag]) -> list[dict]:
+        """Group ordered block elements into heading-scoped sections, tracking source members."""
+        groups: list[dict] = []
+        heading_stack: list[tuple[int, str]] = []
+        current: dict | None = None
+
+        def start_group(heading: str, anchor: str | None, path: tuple[str, ...]) -> dict:
+            return {"heading": heading, "anchor": anchor, "path": path, "members": [], "_texts": []}
+
+        for element in elements:
+            text = element.get_text(" ", strip=True)
+            if not text:
+                continue
+            name = (element.name or "").lower()
+            if name in {"h1", "h2", "h3", "h4"}:
+                if current is not None:
+                    groups.append(current)
+                level = int(name[1])
+                heading_stack = [(lvl, value) for lvl, value in heading_stack if lvl < level]
+                heading_stack.append((level, text))
+                current = start_group(
+                    text,
+                    self._nearest_anchor(element),
+                    tuple(value for _, value in heading_stack),
+                )
+                current["members"].append(element)
+            else:
+                if current is None:
+                    current = start_group("", self._nearest_anchor(element), ())
+                current["_texts"].append(text)
+                current["members"].append(element)
+
+        if current is not None:
+            groups.append(current)
+
+        for group in groups:
+            group["text"] = "\n".join(part for part in group.pop("_texts") if part)
+        return groups
+
+    def _group_is_kept(self, group: dict) -> bool:
+        """A group reaches the AI iff it has content and is not short UI chrome."""
+        if not (group["heading"] or group["text"]):
+            return False
+        return not self._is_ui_chrome(group["heading"], group["text"], group["anchor"])
 
     def _is_ui_chrome(self, heading: str, text: str, anchor: str | None) -> bool:
         """True for SHORT SPA nav/widget blocks (tabs, dropdowns, menus) — never real text.
