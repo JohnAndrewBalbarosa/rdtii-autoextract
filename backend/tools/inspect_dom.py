@@ -29,6 +29,8 @@ from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
 from adapters.botting.scaffolds.scaffold_registry import ScaffoldRegistry
 from tools.inspector_render import build_inspector_html
 from tools.inspector_walkthrough import (
+    build_autoplay_html,
+    build_interactive_html,
     build_overlay_script,
     build_walkthrough_html,
     index_kept_blocks,
@@ -64,6 +66,8 @@ def _build_inspector(
     use_scaffold: bool,
     headless: bool,
     walkthrough: bool = False,
+    autoplay: bool = False,
+    interactive: bool = False,
     step_ms: int = 700,
 ) -> str:
     """Fetch + render + clean, then render the scrape view.
@@ -114,7 +118,37 @@ def _build_inspector(
 
             annotated = cleaner.annotate_html(rendered_html, selectors)
 
-            if walkthrough:
+            if interactive:
+                out_html = build_interactive_html(annotated, source_url=fetch_url)
+                kept = annotated.count('data-zx-keep')
+                print(
+                    f"[inspector] interactive inspect: ~{kept} scraped block(s) in green, "
+                    "skipped dimmed in red. Click any block to see SCRAPED / SKIPPED + reason.",
+                    flush=True,
+                )
+                if not headless:
+                    page.set_content(out_html, wait_until="domcontentloaded")
+                    print(
+                        "[inspector] Click blocks in the window (green=scraped, red=skipped). "
+                        "Close the window when done.",
+                        flush=True,
+                    )
+                    _hold_open(page)
+            elif autoplay:
+                indexed_html, manifest = index_kept_blocks(annotated)
+                out_html = build_autoplay_html(
+                    indexed_html, manifest, source_url=fetch_url, step_ms=step_ms
+                )
+                print(
+                    f"[inspector] autoplay walkthrough: {len(manifest)} block(s) — "
+                    "self-contained, open the --out file in a browser.",
+                    flush=True,
+                )
+                if not headless:
+                    page.set_content(out_html, wait_until="domcontentloaded")
+                    print("[inspector] Auto-playing in window. Close the window when done.", flush=True)
+                    _hold_open(page)
+            elif walkthrough:
                 out_html = _run_walkthrough(
                     page, annotated, fetch_url, headless=headless, step_ms=step_ms
                 )
@@ -124,10 +158,10 @@ def _build_inspector(
                 if not headless:
                     print(
                         "[inspector] Showing ONLY what the AI scrapes (everything else deleted).\n"
-                        "[inspector] DevTools is open. Press Enter here to close...",
+                        "[inspector] DevTools is open. Close the window when done.",
                         flush=True,
                     )
-                    _wait_for_enter()
+                    _hold_open(page)
         finally:
             browser.close()
 
@@ -163,10 +197,10 @@ def _run_walkthrough(page, annotated: str, fetch_url: str, *, headless: bool, st
     if not headless:
         print(
             "[inspector] Walkthrough complete. The red box marked each scraped block.\n"
-            "[inspector] DevTools is open. Press Enter here to close...",
+            "[inspector] DevTools is open. Close the window when done.",
             flush=True,
         )
-        _wait_for_enter()
+        _hold_open(page)
     return doc
 
 
@@ -175,6 +209,34 @@ def _wait_for_enter() -> None:
         input()
     except (EOFError, KeyboardInterrupt):
         pass
+
+
+def _hold_open(page) -> None:
+    """Keep the headed window open until the user closes it.
+
+    In an interactive terminal, wait for Enter. When launched detached (no TTY, e.g. a
+    background process), there is no stdin to read — instead poll until the window (or its
+    browser) is closed, so the window stays up for as long as the user wants it.
+    """
+    if sys.stdin is not None and sys.stdin.isatty():
+        _wait_for_enter()
+        return
+
+    import time
+
+    try:
+        browser = page.context.browser
+    except Exception:
+        browser = None
+    while True:
+        try:
+            if browser is not None and not browser.is_connected():
+                return
+            if page.is_closed():
+                return
+        except Exception:
+            return
+        time.sleep(1)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -206,10 +268,22 @@ def main(argv: list[str] | None = None) -> int:
         "through each scraped block with a debug panel (instead of pruning).",
     )
     parser.add_argument(
+        "--autoplay",
+        action="store_true",
+        help="Build a SELF-CONTAINED auto-playing walkthrough (in-page stepper). Pair with "
+        "--out to save a file you can open in any browser; works headless.",
+    )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="DevTools-style: keep the full page, colour kept blocks green and skipped "
+        "blocks dimmed red; click any block to see SCRAPED / SKIPPED + reason. Self-contained.",
+    )
+    parser.add_argument(
         "--step-ms",
         type=int,
         default=700,
-        help="Pause between highlighted blocks in --walkthrough mode (default 700ms).",
+        help="Pause between highlighted blocks in --walkthrough/--autoplay (default 700ms).",
     )
     args = parser.parse_args(argv)
 
@@ -218,6 +292,8 @@ def main(argv: list[str] | None = None) -> int:
         use_scaffold=args.use_scaffold,
         headless=args.headless,
         walkthrough=args.walkthrough,
+        autoplay=args.autoplay,
+        interactive=args.interactive,
         step_ms=args.step_ms,
     )
 

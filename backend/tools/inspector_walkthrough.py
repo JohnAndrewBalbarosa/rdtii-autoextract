@@ -145,6 +145,170 @@ def build_walkthrough_html(annotated_indexed_html: str, *, source_url: str = "")
     return str(soup)
 
 
+def build_autoplay_html(
+    annotated_indexed_html: str,
+    manifest: list[KeptBlock],
+    *,
+    source_url: str = "",
+    step_ms: int = 700,
+) -> str:
+    """Self-contained walkthrough that auto-steps in the browser (no Python driver).
+
+    Embeds the per-block states + an in-page stepper so the file can be opened directly
+    (or served headless) and the red overlay walks every scraped block on a loop while the
+    debug panel narrates. Same overlay/panel chrome as the live driver.
+    """
+    doc = build_walkthrough_html(annotated_indexed_html, source_url=source_url)
+    soup = BeautifulSoup(doc, "html.parser")
+    body = soup.find("body")
+
+    total = len(manifest)
+    states = [
+        {
+            "idx": b.idx,
+            "src": source_url,
+            "current": f"{b.idx + 1} / {total}",
+            "chars": str(b.char_count),
+            "heading": b.heading or f"<{b.tag}>",
+            "status": f"Reading block {b.idx + 1}/{total}",
+            "next": "Next block" if b.idx + 1 < total else "Loop restart",
+            "preview": b.preview,
+        }
+        for b in manifest
+    ]
+    script = soup.new_tag("script")
+    script.string = f"""
+const ZX_STATES = {json.dumps(states)};
+const ZX_STEP = {int(step_ms)};
+(() => {{
+  const set = (id, v) => {{ const e = document.getElementById(id); if (e) e.textContent = v; }};
+  let i = 0;
+  const tick = () => {{
+    if (!ZX_STATES.length) return;
+    const S = ZX_STATES[i % ZX_STATES.length];
+    set('zx-src', S.src); set('zx-current', S.current); set('zx-chars', S.chars);
+    set('zx-heading', S.heading); set('zx-status', S.status); set('zx-next', S.next);
+    set('zx-preview', S.preview);
+    const el = document.querySelector('[data-zx-idx="' + S.idx + '"]');
+    const ov = document.getElementById('zx-overlay');
+    if (el && ov) {{
+      el.scrollIntoView({{behavior:'smooth', block:'center'}});
+      const r = el.getBoundingClientRect();
+      ov.style.left = r.left + 'px'; ov.style.top = r.top + 'px';
+      ov.style.width = r.width + 'px'; ov.style.height = r.height + 'px';
+    }}
+    i++;
+  }};
+  tick();
+  setInterval(tick, ZX_STEP);
+}})();
+"""
+    body.append(script)
+    return str(soup)
+
+
+_INTERACTIVE_CSS = """
+[data-zx-keep]{ outline:2px solid #16a34a !important; background:rgba(22,163,74,.08) !important;
+  cursor:pointer; }
+[data-zx-keep]:hover{ outline-width:3px !important; background:rgba(22,163,74,.20) !important; }
+[data-zx-drop]{ opacity:.4; outline:1px dashed #ef4444 !important; cursor:pointer; }
+[data-zx-drop]:hover{ opacity:.9; }
+#zx-info{ position:fixed; z-index:2147483647; display:none; max-width:340px;
+  font:12px/1.5 ui-monospace,Menlo,monospace; color:#0f172a; background:#fff;
+  border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 8px 24px rgba(2,6,23,.22);
+  padding:10px 12px; }
+#zx-info .v{ font-weight:600; }
+#zx-info .kept{ color:#16a34a; } #zx-info .skip{ color:#dc2626; }
+#zx-legend{ position:fixed; top:12px; left:12px; z-index:2147483647;
+  font:12px/1.4 system-ui,sans-serif; color:#0f172a; background:#fff; border:1px solid #cbd5e1;
+  border-radius:8px; box-shadow:0 4px 14px rgba(2,6,23,.16); padding:8px 10px; }
+#zx-legend b{ display:block; margin-bottom:4px; }
+#zx-legend .g{ color:#16a34a; } #zx-legend .r{ color:#dc2626; }
+"""
+
+_INTERACTIVE_JS = """
+(() => {
+  const box = document.getElementById('zx-info');
+  const REASONS = {
+    'boilerplate': 'boilerplate — nav / footer / script / form',
+    'chrome': 'short UI chrome — tab / dropdown / menu',
+    'outside-content': 'outside the legal content area',
+  };
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-zx-keep],[data-zx-drop]');
+    if (!el) { box.style.display = 'none'; return; }
+    e.preventDefault(); e.stopPropagation();
+    const kept = el.hasAttribute('data-zx-keep');
+    const reason = el.getAttribute('data-zx-drop') || '';
+    const len = (el.innerText || '').trim().length;
+    const path = el.getAttribute('data-zx-path') || '';
+    const anchor = el.getAttribute('data-zx-anchor') || '';
+    const tag = el.tagName.toLowerCase();
+    let h = kept
+      ? '<div class="v kept">\\u2713 SCRAPED</div>'
+      : '<div class="v skip">\\u2717 SKIPPED</div><div>' + (REASONS[reason] || reason) + '</div>';
+    h += '<div>&lt;' + tag + '&gt; \\u00b7 ' + len + ' chars</div>';
+    if (kept && path) h += '<div>Path: ' + path + '</div>';
+    if (kept && anchor) h += '<div>Anchor: #' + anchor + '</div>';
+    box.innerHTML = h;
+    const x = Math.min(e.clientX + 12, window.innerWidth - 360);
+    const y = Math.min(e.clientY + 12, window.innerHeight - 120);
+    box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.display = 'block';
+  }, true);
+})();
+"""
+
+
+def build_interactive_html(annotated_html: str, *, source_url: str = "") -> str:
+    """DevTools-style click-to-inspect view: click any element to see scraped vs skipped.
+
+    Every block is colour-coded from ``DomCleaner.annotate_html``: kept blocks get a green
+    outline, skipped blocks are dimmed with a red dashed outline. Clicking a block pops a
+    small info box (like the DevTools element panel) stating SCRAPED, or SKIPPED + the
+    reason — so you see exactly which divs the scraper checks and which it drops. No
+    narrating sidebar; just a legend and the on-click panel.
+    """
+    soup = BeautifulSoup(annotated_html, "html.parser")
+
+    # Drop the site's own scripts so the SPA can't re-render over our annotations; the
+    # rendered DOM + stylesheets stay, so the page still looks like itself.
+    for script_tag in soup.find_all("script"):
+        script_tag.decompose()
+
+    html_tag = soup.find("html")
+    head = soup.find("head")
+    if head is None:
+        head = soup.new_tag("head")
+        (html_tag or soup).insert(0, head)
+    body = soup.find("body")
+    if body is None:
+        body = soup.new_tag("body")
+        (html_tag or soup).append(body)
+
+    # A <base href> makes the page's relative CSS/font/image URLs resolve against the real
+    # origin, so it renders correctly whether opened live or as a saved file.
+    if source_url:
+        head.insert(0, soup.new_tag("base", href=source_url))
+
+    style = soup.new_tag("style")
+    style.string = _INTERACTIVE_CSS
+    head.append(style)
+
+    legend = (
+        '<div id="zx-legend"><b>Zetarix · click any block</b>'
+        '<span class="g">█ scraped</span> &nbsp; <span class="r">█ skipped</span>'
+        + (f"<div>{source_url}</div>" if source_url else "")
+        + "</div>"
+    )
+    body.append(BeautifulSoup(legend, "html.parser"))
+    body.append(BeautifulSoup('<div id="zx-info"></div>', "html.parser"))
+
+    script = soup.new_tag("script")
+    script.string = _INTERACTIVE_JS
+    body.append(script)
+    return str(soup)
+
+
 def build_overlay_script(idx: int, state: dict) -> str:
     """JS that positions the overlay over ``[data-zx-idx=idx]`` and refreshes the panel.
 
