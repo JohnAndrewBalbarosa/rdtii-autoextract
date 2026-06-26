@@ -24,9 +24,15 @@ import argparse
 import sys
 
 from adapters.botting.l4_transport.playwright_client import PlaywrightClient
+from adapters.botting.l4_transport.scroll_settle import settle_page
 from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
 from adapters.botting.scaffolds.scaffold_registry import ScaffoldRegistry
 from tools.inspector_render import build_inspector_html
+from tools.inspector_walkthrough import (
+    build_overlay_script,
+    build_walkthrough_html,
+    index_kept_blocks,
+)
 
 
 def _resolve_selectors(url: str, use_scaffold: bool) -> tuple[str, dict | None]:
@@ -52,36 +58,52 @@ def _launch_chrome(p, headless: bool):
         return p.chromium.launch(headless=headless)
 
 
-def _build_inspector(url: str, *, use_scaffold: bool, headless: bool) -> str:
-    """Fetch + render + clean + prune. Returns the scrape-view HTML document."""
+def _build_inspector(
+    url: str,
+    *,
+    use_scaffold: bool,
+    headless: bool,
+    walkthrough: bool = False,
+    step_ms: int = 700,
+) -> str:
+    """Fetch + render + clean, then render the scrape view.
+
+    Two views share one keep/drop logic (``DomCleaner.annotate_html``):
+    - default: prune to ONLY the scraped content (static snapshot).
+    - ``walkthrough``: keep the full page and step a highlight overlay through each
+      scraped block while a debug panel narrates (live visual debugger).
+
+    Lazy SPA content is loaded with condition-based scroll-settling (scroll/expand until
+    the visible text stops growing) instead of a fixed timeout.
+    """
     from playwright.sync_api import sync_playwright
 
     fetch_url, selectors = _resolve_selectors(url, use_scaffold)
     if not fetch_url.lower().startswith(("http://", "https://")):
         raise SystemExit("inspect_dom: only http/https URLs are supported")
 
-    inspector_html = ""
+    out_html = ""
     cleaner = DomCleaner()
     with sync_playwright() as p:
         browser = _launch_chrome(p, headless)
         try:
             page = browser.new_page()
             page.goto(fetch_url, wait_until="networkidle", timeout=30000)
-            # Reuse the production expand pass so lazy/accordion provisions are present.
-            for _ in range(2):
-                try:
-                    page.evaluate(PlaywrightClient._EXPAND_JS)
-                    page.wait_for_timeout(1500)
-                except Exception as exc:
-                    print(f"[inspector] expand pass stopped: {exc}", file=sys.stderr)
-                    break
-            try:
-                page.wait_for_load_state("networkidle", timeout=30000)
-            except Exception:
-                pass
+
+            # Condition-based settle: scroll + expand until lazy provision text plateaus.
+            lengths = settle_page(
+                page,
+                on_round=lambda r, n: print(
+                    f"[inspector] settle round {r}: innerText {n}", flush=True
+                ),
+            )
+            if lengths:
+                print(
+                    f"[inspector] settled at {lengths[-1]} chars after {len(lengths)} round(s)",
+                    flush=True,
+                )
 
             rendered_html = page.content()
-            # The real scrape (same logic), for a "full scraper" summary.
             sections = cleaner.extract_sections(rendered_html, selectors)
             total_chars = sum(len(s.text) for s in sections)
             print(
@@ -91,24 +113,68 @@ def _build_inspector(url: str, *, use_scaffold: bool, headless: bool) -> str:
             )
 
             annotated = cleaner.annotate_html(rendered_html, selectors)
-            inspector_html = build_inspector_html(annotated, source_url=fetch_url)
 
-            # Repaint the page with everything-but-the-scrape deleted, and hold it open.
-            page.set_content(inspector_html, wait_until="domcontentloaded")
-            if not headless:
-                print(
-                    "[inspector] Showing ONLY what the AI scrapes (everything else deleted).\n"
-                    "[inspector] DevTools is open for inspection. Press Enter here to close...",
-                    flush=True,
+            if walkthrough:
+                out_html = _run_walkthrough(
+                    page, annotated, fetch_url, headless=headless, step_ms=step_ms
                 )
-                try:
-                    input()
-                except (EOFError, KeyboardInterrupt):
-                    pass
+            else:
+                out_html = build_inspector_html(annotated, source_url=fetch_url)
+                page.set_content(out_html, wait_until="domcontentloaded")
+                if not headless:
+                    print(
+                        "[inspector] Showing ONLY what the AI scrapes (everything else deleted).\n"
+                        "[inspector] DevTools is open. Press Enter here to close...",
+                        flush=True,
+                    )
+                    _wait_for_enter()
         finally:
             browser.close()
 
-    return inspector_html
+    return out_html
+
+
+def _run_walkthrough(page, annotated: str, fetch_url: str, *, headless: bool, step_ms: int) -> str:
+    """Repaint the full page with debugger chrome and step the overlay block by block."""
+    indexed_html, manifest = index_kept_blocks(annotated)
+    doc = build_walkthrough_html(indexed_html, source_url=fetch_url)
+    page.set_content(doc, wait_until="domcontentloaded")
+
+    total = len(manifest)
+    print(f"[inspector] walkthrough: {total} scraped block(s) — highlighting each.", flush=True)
+    for block in manifest:
+        state = {
+            "src": fetch_url,
+            "current": block.idx + 1,
+            "total": total,
+            "char_count": block.char_count,
+            "heading": block.heading or f"<{block.tag}>",
+            "status": f"Reading block {block.idx + 1}/{total}",
+            "next_action": "Next block" if block.idx + 1 < total else "Done",
+            "preview": block.preview,
+        }
+        try:
+            page.evaluate(build_overlay_script(block.idx, state))
+            page.wait_for_timeout(step_ms)
+        except Exception as exc:
+            print(f"[inspector] walkthrough stopped at block {block.idx}: {exc}", file=sys.stderr)
+            break
+
+    if not headless:
+        print(
+            "[inspector] Walkthrough complete. The red box marked each scraped block.\n"
+            "[inspector] DevTools is open. Press Enter here to close...",
+            flush=True,
+        )
+        _wait_for_enter()
+    return doc
+
+
+def _wait_for_enter() -> None:
+    try:
+        input()
+    except (EOFError, KeyboardInterrupt):
+        pass
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -131,7 +197,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--out",
         default=None,
-        help="Write the pruned scrape HTML to this file.",
+        help="Write the scrape-view HTML to this file.",
+    )
+    parser.add_argument(
+        "--walkthrough",
+        action="store_true",
+        help="Live visual debugger: keep the full page and step a highlight overlay "
+        "through each scraped block with a debug panel (instead of pruning).",
+    )
+    parser.add_argument(
+        "--step-ms",
+        type=int,
+        default=700,
+        help="Pause between highlighted blocks in --walkthrough mode (default 700ms).",
     )
     args = parser.parse_args(argv)
 
@@ -139,6 +217,8 @@ def main(argv: list[str] | None = None) -> int:
         args.url,
         use_scaffold=args.use_scaffold,
         headless=args.headless,
+        walkthrough=args.walkthrough,
+        step_ms=args.step_ms,
     )
 
     if args.out and inspector_html:

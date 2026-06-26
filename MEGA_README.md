@@ -622,6 +622,24 @@ for generic cleaning. The keep/delete decision is produced by `DomCleaner.annota
 ships; there is no second implementation to drift. Dev-only: `backend/tools/` is not imported
 by the production pipeline.
 
+**Live visual debugger** (`--walkthrough`): instead of pruning, keeps the full page and
+**steps a red highlight overlay through each scraped block in order** while a floating debug
+panel narrates (source, block N/total, char count, heading, status, preview). This is the
+"watch what the scraper reads" mode — useful for confirming per-portal whether real content
+is captured or dropped.
+
+```powershell
+cd backend
+python -m tools.inspect_dom --url "https://www.legislation.gov.au/..." --walkthrough --step-ms 700
+```
+
+Both views first **load lazy SPA content with condition-based scroll-settling**
+(`adapters/botting/l4_transport/scroll_settle.py`): the page is scrolled + expanded in
+rounds until the visible text length plateaus, replacing fixed-timeout guessing. This is
+what makes the AU register's lazy-rendered provisions fully appear before extraction. The
+walkthrough's keep set comes from the same `DomCleaner.annotate_html`; addressing/highlight
+logic is the pure, unit-tested `tools/inspector_walkthrough.py`.
+
 ## 13. Output Files
 
 The CLI writes:
