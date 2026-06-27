@@ -18,6 +18,16 @@ _CHROME_ANCHOR_RE = re.compile(
 )
 _MIN_CONTENT_CHARS_FOR_CHROME = 200  # below this a nav-looking block is treated as chrome
 
+# Bug #2 fix: collapsed list-of-provisions pages (e.g. legislation.gov.au) carry provisions
+# as <li> with a section-number prefix, wrapped by "Collapse Part/Division …" aggregate <li>
+# that duplicate child text. These let us split one giant section into per-provision sections.
+_SECTION_NUM_RE = re.compile(r"^\d+[A-Z]*\s+\S")  # "1  Short title", "2A  Objects"
+_STRUCT_RE = re.compile(r"^(?:Collapse\s+)?(Part|Division|Subdivision|Chapter)\b", re.I)
+_KIND_ORDER = {"chapter": 0, "part": 1, "division": 2, "subdivision": 3}
+_ACT_TITLE_RE = re.compile(
+    r"\b(Act|Regulations?|Code|Ordinance|Decree|Law)\b.*\b(19|20)\d{2}\b", re.I
+)
+
 
 class DomCleaner:
     """OSI Layer 6 (Presentation): Translates raw HTML bytes/strings into clean, readable text."""
@@ -56,6 +66,10 @@ class DomCleaner:
 
         elements = self._collect_block_elements(main_content, selectors)
         groups = self._group_elements(elements)
+        act_title = self._detect_act_title(soup)
+        split_groups: list[dict] = []
+        for group in groups:
+            split_groups.extend(self._split_numbered_list_group(group, act_title))
         return [
             HtmlSection(
                 heading=group["heading"],
@@ -63,7 +77,7 @@ class DomCleaner:
                 anchor=group["anchor"],
                 path=group["path"],
             )
-            for group in groups
+            for group in split_groups
             if self._group_is_kept(group)
         ]
 
@@ -398,6 +412,90 @@ class DomCleaner:
         for group in groups:
             group["text"] = "\n".join(part for part in group.pop("_texts") if part)
         return groups
+
+    def _detect_act_title(self, soup) -> str | None:
+        """Find the law's title (e.g. 'Privacy Act 1988 No. 119, 1988') anywhere on the page.
+
+        It usually sits in the masthead, OUTSIDE the content area, so it is otherwise dropped.
+        The aligned design uses it as the root of every section's breadcrumb path.
+        """
+        for tag in soup.find_all(["h1", "h2", "title"]):
+            text = tag.get_text(" ", strip=True)
+            if text and _ACT_TITLE_RE.search(text):
+                return text
+        return None
+
+    def _structural_label(self, text: str) -> str:
+        """'Collapse Part I-Preliminary 1  Short title 2  …' -> 'Part I-Preliminary'."""
+        label = re.sub(r"^Collapse\s+", "", text, flags=re.IGNORECASE).strip()
+        cut = re.search(r"\s\d+[A-Z]*\s", label)
+        if cut:
+            label = label[: cut.start()]
+        return label.strip()
+
+    def _push_struct(self, stack: list[str], label: str) -> list[str]:
+        """Maintain a Part>Division>Subdivision parent chain, replacing same/lower kinds."""
+        kind = label.split()[0].lower() if label else ""
+        level = _KIND_ORDER.get(kind)
+        if level is None:
+            return stack + [label]
+        kept = [s for s in stack if _KIND_ORDER.get(s.split()[0].lower(), 99) < level]
+        return kept + [label]
+
+    def _split_numbered_list_group(self, group: dict, act_title: str | None = None) -> list[dict]:
+        """Split a collapsed group into per-section sections when it holds a numbered list.
+
+        Guarded: only triggers when the group has >= 2 leaf blocks whose text starts with a
+        section-number prefix. Generic heading-structured pages are returned unchanged, so the
+        existing h1-h4 behaviour (and its tests) is preserved. Part/Division aggregate <li>
+        become parent breadcrumb labels (their duplicated body is dropped); the Act title is
+        prepended as the path root.
+        """
+        members = group.get("members", [])
+
+        def leaf_text(member) -> str:
+            return member.get_text(" ", strip=True)
+
+        starts = [
+            member
+            for member in members
+            if not self._has_nested_standard_block(member) and _SECTION_NUM_RE.match(leaf_text(member))
+        ]
+        if len(starts) < 2:
+            return [group]
+
+        base_path = list(group.get("path", ()))
+        if act_title and (not base_path or base_path[0] != act_title):
+            base_path = [act_title] + base_path
+
+        sections: list[dict] = []
+        struct_stack: list[str] = []
+        current: dict | None = None
+        for member in members:
+            text = leaf_text(member)
+            if not text:
+                continue
+            is_section = not self._has_nested_standard_block(member) and bool(_SECTION_NUM_RE.match(text))
+            if not is_section and _STRUCT_RE.match(text):
+                struct_stack = self._push_struct(struct_stack, self._structural_label(text))
+                continue
+            if self._has_nested_standard_block(member):
+                # Aggregate container without a structural label: drop its duplicated body.
+                continue
+            if is_section:
+                path = tuple(part for part in base_path + struct_stack + [text] if part)
+                current = {
+                    "heading": text,
+                    "anchor": self._nearest_anchor(member),
+                    "path": path,
+                    "members": [member],
+                    "text": "",
+                }
+                sections.append(current)
+            elif current is not None:
+                current["text"] = (current["text"] + "\n" + text).strip()
+
+        return sections or [group]
 
     def _group_is_kept(self, group: dict) -> bool:
         """A group reaches the AI iff it has content and is not short UI chrome."""
