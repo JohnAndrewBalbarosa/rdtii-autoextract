@@ -1,0 +1,99 @@
+@startuml zetarix-pipeline-eval
+title Zetarix — Department 02: Pipeline & Evaluation (Component View)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultTextAlignment center
+
+package "core/ports (Dept 03 seam)" as Ports {
+  interface ProvisionExtractor
+  interface SectionExtractor
+  interface SimilarityScorer
+  interface CommunityDetector
+  interface LLMProvider
+}
+
+package "core/domain" as Domain {
+  [Finding]
+  [ConceptNode]
+  [ClusterGraph]
+  [indicator_definitions\n(CONCEPT_VOCAB / INDICATOR_TAGS)] as IND
+  [CrawledDocument\n(from Dept 01)] as CD
+}
+
+package "Extraction — adapters/extraction" as EX {
+  [section_tagger] as ST
+  [tagmatch_provision_extractor] as TM
+  [structural_extractor] as STR
+  [mock_provision_extractor] as MOCK
+  [fallback_provision_extractor] as FB
+}
+
+package "Pipeline — core/pipeline" as PL {
+  [set_trie] as TRIE
+  [parallel_matcher] as PM
+  [scoring.py\n★ F1 HARNESS] as SCORE
+  [cluster_pipeline] as CP
+  [guided_tagging] as GT
+  [ocr_cer] as CER
+}
+
+package "Clustering — adapters/clustering" as CL {
+  [tag_overlap_scorer] as TOS
+  [louvain_communities] as LOU
+}
+
+package "LLM — adapters/llm" as LLM {
+  [LLMRouter] as ROUTER
+  [remote_provider\n(Claude/GPT)] as REM
+  [local_provider\n(Ollama)] as LOC
+}
+
+package "Ground truth (Dept 03)" as GOLD {
+  [golden_dataset.GoldRecord] as GR
+}
+
+' ---- realizations ----
+TM ..|> ProvisionExtractor
+MOCK ..|> ProvisionExtractor
+FB ..|> ProvisionExtractor
+STR ..|> SectionExtractor
+TOS ..|> SimilarityScorer
+LOU ..|> CommunityDetector
+ROUTER ..|> LLMProvider
+
+' ---- extraction flow ----
+CD --> ST : tag sections
+ST --> IND : reads vocab
+ST --> ConceptNode
+TM --> ST
+TM --> TRIE : subset query
+TM --> Finding : emits (real snippet)
+FB --> TM : primary
+FB --> MOCK : fallback
+PM --> TRIE
+
+' ---- scoring ----
+Finding --> SCORE : predictions
+GR --> SCORE : gold
+SCORE --> SCORE : precision/recall/F1\n(deterministic, token Jaccard)
+
+' ---- graph ----
+ConceptNode --> TOS : edges
+TOS --> LOU : communities
+TOS --> CP
+LOU --> CP
+CP --> ClusterGraph : + discovery candidates
+
+' ---- LLM seam ----
+ROUTER --> REM
+ROUTER --> LOC
+GT ..> LLMProvider : optional
+note right of ROUTER
+  Only AI surface.
+  Deterministic scoring &
+  graph paths do NOT depend
+  on this router.
+end note
+
+@enduml
