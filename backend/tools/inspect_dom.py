@@ -21,6 +21,7 @@ This module is NOT imported by the production pipeline.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 from adapters.botting.l4_transport.playwright_client import PlaywrightClient
@@ -69,6 +70,7 @@ def _build_inspector(
     autoplay: bool = False,
     interactive: bool = False,
     step_ms: int = 700,
+    json_out: str | None = None,
 ) -> str:
     """Fetch + render + clean, then render the scrape view.
 
@@ -115,6 +117,20 @@ def _build_inspector(
                 f"from {fetch_url}",
                 flush=True,
             )
+
+            if json_out:
+                trace = cleaner.annotate_blocks(rendered_html, selectors)
+                trace = {"url": fetch_url, **trace}
+                with open(json_out, "w", encoding="utf-8") as handle:
+                    json.dump(trace, handle, indent=2, ensure_ascii=False)
+                s = trace["summary"]
+                print(
+                    f"[inspector] wrote decision trace to {json_out}: "
+                    f"kept={s['kept']} dropped={s['dropped']} "
+                    f"potential_false_skips={s['potential_false_skips']}",
+                    flush=True,
+                )
+                _print_false_skip_prompt(trace)
 
             annotated = cleaner.annotate_html(rendered_html, selectors)
 
@@ -204,6 +220,32 @@ def _run_walkthrough(page, annotated: str, fetch_url: str, *, headless: bool, st
     return doc
 
 
+def _print_false_skip_prompt(trace: dict, top: int = 8) -> None:
+    """Emit a reviewer-facing reverse-prompt: skipped blocks that still hold real text.
+
+    These are the false-skip risks — law/article text that selector/regex logic may have
+    wrongly ignored (sidebar, nav, off-content panels). The reviewer decides KEEP/IGNORE.
+    """
+    risky = sorted(
+        (b for b in trace["blocks"] if b["decision"] == "skipped" and b["char_count"] >= 200),
+        key=lambda b: b["char_count"],
+        reverse=True,
+    )[:top]
+    if not risky:
+        print("[inspector] no substantial skipped blocks — nothing flagged for review.", flush=True)
+        return
+    print("\n================ REVERSE PROMPT (review these skipped blocks) ================")
+    print(f"On {trace.get('url','?')} I skipped these blocks that still contain real text.")
+    print("Tell me KEEP <n> (real law/article text I wrongly dropped) or IGNORE <n> (true noise):\n")
+    for i, b in enumerate(risky, 1):
+        anchor = b.get("anchor") or "-"
+        hit = b.get("selector_hit")
+        why = f"{b['reason']}" + (f" via {hit}" if hit else "")
+        print(f"  [{i}] <{b['tag']}> anchor={anchor} ({b['char_count']} chars, {why})")
+        print(f"      {b['preview']}")
+    print("\n=============================================================================\n", flush=True)
+
+
 def _wait_for_enter() -> None:
     try:
         input()
@@ -285,6 +327,13 @@ def main(argv: list[str] | None = None) -> int:
         default=700,
         help="Pause between highlighted blocks in --walkthrough/--autoplay (default 700ms).",
     )
+    parser.add_argument(
+        "--json",
+        dest="json_out",
+        default=None,
+        help="Write a keep/drop decision-trace JSON (kept vs skipped blocks + reasons + "
+        "potential false-skips) and print a reviewer reverse-prompt. Pairs well with --headless.",
+    )
     args = parser.parse_args(argv)
 
     inspector_html = _build_inspector(
@@ -295,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
         autoplay=args.autoplay,
         interactive=args.interactive,
         step_ms=args.step_ms,
+        json_out=args.json_out,
     )
 
     if args.out and inspector_html:

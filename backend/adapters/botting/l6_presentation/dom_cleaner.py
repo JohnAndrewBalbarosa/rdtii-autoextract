@@ -122,6 +122,128 @@ class DomCleaner:
 
         return str(soup)
 
+    def annotate_blocks(self, html_content: str, selectors: dict | None = None) -> dict:
+        """Machine-readable keep/drop decision trace for the dev inspector (JSON).
+
+        Reuses the EXACT collection/grouping/chrome logic of ``annotate_html`` /
+        ``extract_sections`` (same private helpers) so the trace matches what the headless
+        production path keeps. Returns a dict::
+
+            {"summary": {...}, "blocks": [ {tag, anchor, path, decision, reason,
+                                            char_count, preview, selector_hit?}, ... ]}
+
+        ``decision`` is ``"kept"`` or ``"skipped"``; ``reason`` is ``kept`` | ``chrome`` |
+        ``boilerplate`` | ``outside-content``. ``selector_hit`` (boilerplate only) names the
+        selector that dropped the block. ``summary.potential_false_skips`` counts SKIPPED
+        blocks that still hold substantial text (>= the chrome threshold) — the blocks a
+        reviewer must check, because real law/article text could be hiding in a sidebar/nav
+        the selector logic ignored.
+        """
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # Map every boilerplate element (and descendants) to the selector that matched it.
+        boiler_hit: dict[int, str] = {}
+        extra = selectors.get("boilerplate") if selectors else None
+        for selector in self._boilerplate_selectors(extra):
+            try:
+                matches = list(soup.select(selector))
+            except Exception:
+                continue
+            for element in matches:
+                boiler_hit.setdefault(id(element), selector)
+                for descendant in element.find_all(True):
+                    boiler_hit.setdefault(id(descendant), selector)
+
+        main_content = self._content_area(soup, selectors)
+        elements = [
+            element
+            for element in self._collect_block_elements(main_content, selectors)
+            if id(element) not in boiler_hit
+        ]
+
+        blocks: list[dict] = []
+        seen_ids: set[int] = set()
+        for group in self._group_elements(elements):
+            kept = self._group_is_kept(group)
+            path = list(group["path"])
+            for member in group["members"]:
+                text = member.get_text(" ", strip=True)
+                if not text:
+                    continue
+                seen_ids.add(id(member))
+                blocks.append(
+                    self._block_record(
+                        member,
+                        text,
+                        "kept" if kept else "skipped",
+                        "kept" if kept else "chrome",
+                        path=path,
+                    )
+                )
+
+        # Standard text blocks the content grouping never reached: either boilerplate
+        # (dropped by a selector) or outside the content area. These are where real text
+        # can hide, so surface them too.
+        for element in soup.find_all(["h1", "h2", "h3", "h4", "p", "li"]):
+            if id(element) in seen_ids:
+                continue
+            text = element.get_text(" ", strip=True)
+            if not text:
+                continue
+            if id(element) in boiler_hit:
+                blocks.append(
+                    self._block_record(
+                        element, text, "skipped", "boilerplate", selector_hit=boiler_hit[id(element)]
+                    )
+                )
+            else:
+                blocks.append(self._block_record(element, text, "skipped", "outside-content"))
+
+        return {"summary": self._trace_summary(blocks), "blocks": blocks}
+
+    def _block_record(
+        self,
+        element,
+        text: str,
+        decision: str,
+        reason: str,
+        *,
+        path: list[str] | None = None,
+        selector_hit: str | None = None,
+    ) -> dict:
+        record = {
+            "tag": (element.name or "").lower(),
+            "anchor": self._nearest_anchor(element),
+            "path": path or [],
+            "decision": decision,
+            "reason": reason,
+            "char_count": len(text),
+            "preview": text[:160],
+        }
+        if selector_hit:
+            record["selector_hit"] = selector_hit
+        return record
+
+    def _trace_summary(self, blocks: list[dict]) -> dict:
+        dropped: dict[str, int] = {}
+        kept = 0
+        chars_kept = 0
+        false_skips = 0
+        for block in blocks:
+            if block["decision"] == "kept":
+                kept += 1
+                chars_kept += block["char_count"]
+            else:
+                dropped[block["reason"]] = dropped.get(block["reason"], 0) + 1
+                if block["char_count"] >= _MIN_CONTENT_CHARS_FOR_CHROME:
+                    false_skips += 1
+        return {
+            "kept": kept,
+            "chars_kept": chars_kept,
+            "dropped": dropped,
+            "potential_false_skips": false_skips,
+        }
+
     def discover_links(self, html_content: str, selectors: dict[str, str]) -> dict[str, list[str]]:
         """Extracts PDF and internal article links based on the provided selectors."""
         soup = BeautifulSoup(html_content, "html.parser")
