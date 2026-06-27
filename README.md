@@ -93,6 +93,19 @@ It also accepts full names such as `Australia`, `Singapore`, `Malaysia`,
 `-- README.md
 ```
 
+## Documentation Map
+
+- **[docs/departments/](docs/departments/README.md)** — the delegation handbook: the
+  codebase split into 4 owner-aligned departments, each with a README (modularity view)
+  and a PlantUML component diagram. Start here for task delegation / reverse-prompting.
+- **Per-folder READMEs** — most code folders carry a `README.md` with a Mermaid diagram of
+  what happens inside that module (e.g. [`backend/core/`](backend/core/README.md),
+  [`backend/adapters/botting/`](backend/adapters/botting/README.md),
+  [`frontend/src/`](frontend/src/README.md)).
+- **[backend/docs/](backend/docs/)** — architecture & strategy (ARCHITECTURE, GRAPH_PIPELINE,
+  SCORING_STRATEGY, SCRAPING_STRATEGY).
+- **[MEGA_README.md](MEGA_README.md)** — long-form operating guide.
+
 ## Key Backend Modules
 
 - `backend/run.py`: country/pillar CLI, gold/live source selection, output writing.

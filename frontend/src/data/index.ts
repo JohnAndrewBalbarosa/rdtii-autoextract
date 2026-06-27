@@ -3,13 +3,15 @@
 
 import type { FindingsRepository } from "./findings.repository";
 import { createMockRepository } from "./findings.mock";
+import { createApiRepository } from "./findings.api";
 
 let instance: FindingsRepository | null = null;
 
 export function getFindingsRepository(): FindingsRepository {
   if (instance) return instance;
-  // Future: branch on process.env.NEXT_PUBLIC_FINDINGS_API to use a REST adapter.
-  instance = createMockRepository();
+  // Use the REST backend when configured; fall back to the in-memory mock otherwise.
+  const apiBase = process.env.NEXT_PUBLIC_FINDINGS_API;
+  instance = apiBase ? createApiRepository(apiBase) : createMockRepository();
   return instance;
 }
 

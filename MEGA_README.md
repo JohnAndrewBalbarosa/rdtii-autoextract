@@ -3,6 +3,11 @@
 This is the long-form operating guide for the `rdtii-autoextract` repository.
 The short GitHub landing page is [README.md](README.md).
 
+> **For developers:** task delegation is organized in
+> [docs/departments/](docs/departments/README.md) (4 departments, each with a component
+> diagram + reverse-prompting hooks). Individual code folders also carry a `README.md`
+> with a Mermaid diagram of the module's internal process.
+
 ## 1. Purpose
 
 Zetarix is an AI-assisted pipeline for extracting and validating public legal
