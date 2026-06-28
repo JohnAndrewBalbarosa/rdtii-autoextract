@@ -27,3 +27,6 @@ data/cache/
 # Editors
 .vscode/
 .idea/
+out_live/
+out_live2/
+out*/
