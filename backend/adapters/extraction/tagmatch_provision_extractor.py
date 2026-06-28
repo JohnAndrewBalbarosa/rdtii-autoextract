@@ -59,7 +59,7 @@ class TagMatchProvisionExtractor:
         if not pillar_defs:
             return []
 
-        title = derive_title(doc.text, doc.url)
+        title = (getattr(doc, "title", "") or "").strip() or derive_title(doc.text, doc.url)
         pillar_enum = Pillar(pillar)
         blocks = self._blocks(doc)
 

@@ -8,7 +8,7 @@ class PlaywrightClient(HtmlFetcherPort):
     def __init__(
         self,
         headless: bool = True,
-        timeout_ms: int = 30000,
+        timeout_ms: int = 60000,
         proxy_config: ProxyConfig = None,
         expand: bool = True,
     ):
@@ -41,7 +41,9 @@ class PlaywrightClient(HtmlFetcherPort):
             browser = p.chromium.launch(**launch_args)
             try:
                 page = browser.new_page()
-                page.goto(url, wait_until="networkidle", timeout=self._timeout)
+                # SPAs (e.g. legislation.gov.au) keep background traffic alive, so
+                # "networkidle" routinely times out. Wait for the DOM, then expand + settle.
+                page.goto(url, wait_until="domcontentloaded", timeout=self._timeout)
                 if self._expand:
                     # Expand twice (nested accordions), settling after each, all best-effort.
                     for _ in range(2):

@@ -27,6 +27,28 @@ def slug_from_url(url: str) -> str:
     return slug.title() if slug else "Untitled Document"
 
 
+_TITLE_SEP_RE = re.compile(r"\s[-|–—]\s")  # " - ", " | ", en/em dashes
+_YEAR_IN_TITLE_RE = re.compile(r"\b(19|20)\d{2}\b")
+
+
+def clean_law_title(title: str) -> str:
+    """Strip site-suffix noise from a detected Act title.
+
+    'Privacy Act 1988 - Federal Register of Legislation' -> 'Privacy Act 1988'. Splits on
+    common separators and keeps the segment carrying a year (the law name); else the first.
+    """
+    title = (title or "").strip()
+    if not title:
+        return ""
+    parts = [p.strip() for p in _TITLE_SEP_RE.split(title) if p.strip()]
+    if not parts:
+        return title
+    for part in parts:
+        if _YEAR_IN_TITLE_RE.search(part):
+            return part
+    return parts[0]
+
+
 def derive_title(text: str, url: str) -> str:
     """First substantive line of ``text`` (>=3 chars), else a slug from ``url``."""
     for line in (text or "").splitlines():

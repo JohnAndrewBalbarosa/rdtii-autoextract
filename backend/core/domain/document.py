@@ -55,6 +55,7 @@ class CrawledDocument:
     is_pdf: bool = False
     language: str = "en"  # ISO 639-1
     sections: tuple["HtmlSection", ...] = ()
+    title: str = ""  # detected Act title (e.g. "Privacy Act 1988"); "" -> extractor derives one
 
 
 @dataclass(frozen=True)

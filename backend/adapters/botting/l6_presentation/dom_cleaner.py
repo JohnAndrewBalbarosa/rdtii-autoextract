@@ -413,6 +413,10 @@ class DomCleaner:
             group["text"] = "\n".join(part for part in group.pop("_texts") if part)
         return groups
 
+    def detect_act_title(self, html_content: str, selectors: dict | None = None) -> str | None:
+        """Public: detect the law's title from raw HTML (e.g. 'Privacy Act 1988 No. 119')."""
+        return self._detect_act_title(BeautifulSoup(html_content, "html.parser"))
+
     def _detect_act_title(self, soup) -> str | None:
         """Find the law's title (e.g. 'Privacy Act 1988 No. 119, 1988') anywhere on the page.
 

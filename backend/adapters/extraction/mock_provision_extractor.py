@@ -262,7 +262,10 @@ class MockProvisionExtractor:
         return rationale[:_MAX_RATIONALE_CHARS]
 
     def _derive_title(self, doc: CrawledDocument) -> str:
-        """First substantive line of the text, else a slug from the URL path."""
+        """Prefer the detected Act title, else first substantive line, else URL slug."""
+        detected = (getattr(doc, "title", "") or "").strip()
+        if detected:
+            return detected[:_MAX_SNIPPET_CHARS]
         for line in (doc.text or "").splitlines():
             stripped = line.strip()
             if len(stripped) >= 3:

@@ -34,6 +34,7 @@ from urllib.parse import urljoin, urlparse
 # Make `from core...` / `from adapters...` resolve when run as a plain script from any cwd.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from adapters.extraction.text_helpers import clean_law_title  # noqa: E402
 from core.domain.document import CrawledDocument  # noqa: E402
 from core.domain.entities import DiscoveryTag, Finding, Pillar  # noqa: E402
 from core.domain.indicator_codes import to_canonical  # noqa: E402
@@ -308,12 +309,20 @@ def _fetch_clean(url: str, country: str, fetcher, logger) -> _Page | None:
             logger.info("non-legislative HTML url=%s (chars=%d); links only", url, len(text))
             return _Page(url=url, scaffold=scaffold, html=raw_html, doc=None)
 
+        act_title = ""
+        try:
+            detected = cleaner.detect_act_title(result.text, selectors)
+            act_title = clean_law_title(detected) if detected else ""
+        except Exception:
+            act_title = ""
+
         doc = CrawledDocument(
             url=url,
             economy=country,
             text=text,
             is_pdf=False,
             sections=tuple(sections),
+            title=act_title,
         )
         return _Page(url=url, scaffold=scaffold, html=raw_html, doc=doc)
     except Exception as exc:  # parse/decode failure — skip this doc
