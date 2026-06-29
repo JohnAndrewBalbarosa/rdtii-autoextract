@@ -2,6 +2,12 @@ from typing import Any, Optional
 
 from core.ports import LLMProvider, DocumentExtractorPort, HtmlFetcherPort
 from core.domain.document import ParsedDocument, RawSection
+from adapters.llm.prompt_contracts import (
+    MARKDOWN_EXTRACTION_SCHEMA,
+    STRUCTURED_SECTIONS_SCHEMA,
+    build_markdown_extraction_prompt,
+    build_structured_sections_prompt,
+)
 from adapters.botting.l4_transport.fetch_result import FetchResult
 from adapters.botting.l4_transport.pdf_parser import PdfParser
 from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
@@ -86,39 +92,17 @@ class PipelineAdapter(DocumentExtractorPort):
 
     def _extract_markdown_with_llm(self, text: str) -> str:
         """Use the Extraction Agent to find legal headers and clauses."""
-        prompt = (
-            "Extract all legal sections from the following text. "
-            "Remove any conversational fluff. Return raw Markdown chunks only.\n\n"
-            f"{text}"
+        response = self._llm.complete(
+            build_markdown_extraction_prompt(text),
+            MARKDOWN_EXTRACTION_SCHEMA,
+            agent_profile="extraction_agent",
         )
-        schema = {"type": "object", "properties": {"markdown_content": {"type": "string"}}}
-        response = self._llm.complete(prompt, schema, agent_profile="extraction_agent")
         return response.get("markdown_content", "")
 
     def _structure_json_with_llm(self, markdown_text: str) -> dict[str, Any]:
         """Use the Structuring Agent to enforce JSON schema."""
-        prompt = (
-            "Format the following markdown content into a structured JSON object containing "
-            "a list of 'sections', where each section has a 'heading' (string), "
-            "'level' (integer representing heading depth, e.g. 1 for h1), and 'text' (string).\n\n"
-            f"{markdown_text}"
+        return self._llm.complete(
+            build_structured_sections_prompt(markdown_text),
+            STRUCTURED_SECTIONS_SCHEMA,
+            agent_profile="structuring_agent",
         )
-        schema = {
-            "type": "object",
-            "properties": {
-                "sections": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "heading": {"type": "string"},
-                            "level": {"type": "integer"},
-                            "text": {"type": "string"},
-                        },
-                        "required": ["heading", "level", "text"],
-                    },
-                }
-            },
-            "required": ["sections"],
-        }
-        return self._llm.complete(prompt, schema, agent_profile="structuring_agent")
