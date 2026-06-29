@@ -50,6 +50,14 @@ class PipelineAdapter(DocumentExtractorPort):
         else:
             raw_html = result.text if result is not None else raw_html  # type: ignore[assignment]
             cleaned_text = self._cleaner.clean_html(raw_html, custom_selectors)
+            
+            # Dynamic self-learning: if scaffold is missing, has no custom selectors, or selectors yielded empty content
+            if self._scaffold_registry and (not scaffold or not custom_selectors or not cleaned_text.strip()):
+                new_selectors = self._scaffold_registry.learn_and_save(url, raw_html, self._llm)
+                if new_selectors:
+                    custom_selectors = new_selectors
+                    cleaned_text = self._cleaner.clean_html(raw_html, custom_selectors)
+            
             discovered_links = self._cleaner.discover_links(raw_html, custom_selectors)
 
         # Step 3: The Extraction Sub-Agent (Small Model)

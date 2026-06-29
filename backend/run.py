@@ -156,14 +156,12 @@ def _default_extractor():
 
 
 def _default_fetcher():
-    """Default live fetcher: the real ``HttpClient`` (an ``HtmlFetcherPort`` with fetch_raw).
-
-    Any object exposing ``fetch_raw(url) -> FetchResult`` is acceptable; tests inject a
-    fake so the live path runs offline.
-    """
+    """Default live fetcher: the hybrid TransportFactory selecting static or dynamic."""
     from adapters.botting.l4_transport.http_client import HttpClient
+    from adapters.botting.l4_transport.playwright_client import PlaywrightClient
+    from adapters.botting.l4_transport.factory import TransportFactory
 
-    return HttpClient()
+    return TransportFactory(HttpClient(), PlaywrightClient())
 
 
 def _seed_urls(country: str, pillar: int, docs_dir: str | None = None) -> list[str]:

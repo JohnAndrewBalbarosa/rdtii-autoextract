@@ -204,6 +204,19 @@ class HttpClient(HtmlFetcherPort):
 
             with ctx as response:
                 body = response.read()
+                content_encoding = response.headers.get("Content-Encoding", "").lower()
+                if "gzip" in content_encoding:
+                    import gzip
+                    try:
+                        body = gzip.decompress(body)
+                    except Exception:
+                        pass
+                elif "deflate" in content_encoding:
+                    import zlib
+                    try:
+                        body = zlib.decompress(body)
+                    except Exception:
+                        pass
                 content_type = response.headers.get("Content-Type", "application/octet-stream")
                 status = response.status
             return FetchResult(url=url, status=status, content_type=content_type, body=body)

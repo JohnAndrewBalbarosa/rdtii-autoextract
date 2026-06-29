@@ -57,6 +57,10 @@ def main() -> None:
     print(f"Ollama Host:    {local_provider._endpoint}")
     print("-" * 60)
 
+    # Local storage to capture all intermediate agent steps
+    agent_outputs = {}
+    scraping_details = {}
+
     # Intercept complete calls for full debugging visibility
     original_complete = router.complete
     def debug_complete(prompt: str, schema: dict, agent_profile: str = "main_controller") -> dict:
@@ -65,10 +69,20 @@ def main() -> None:
         print(f"  Prompt snippet:\n{prompt[:350]}\n  ...")
         try:
             res = original_complete(prompt, schema, agent_profile)
+            agent_outputs[agent_profile] = {
+                "prompt": prompt,
+                "schema": schema,
+                "response": res
+            }
             print(f"  Response: (valid JSON conforms to schema)")
             print(f"  Response snippet:\n{json.dumps(res, indent=2)[:350]}\n  ...")
             return res
         except Exception as e:
+            agent_outputs[agent_profile] = {
+                "prompt": prompt,
+                "schema": schema,
+                "error": str(e)
+            }
             print(f"  Response failed: {e}")
             raise
 
@@ -78,6 +92,17 @@ def main() -> None:
     print("Initializing Playwright browser...")
     fetcher = PlaywrightClient(headless=True)
     cleaner = DomCleaner()
+    
+    # Intercept cleaner to capture raw HTML, selectors and cleaned output text
+    original_clean = cleaner.clean_html
+    def debug_clean_html(html_content: str, selectors: dict[str, str] = None) -> str:
+        scraping_details["raw_html"] = html_content
+        scraping_details["selectors_used"] = selectors
+        result = original_clean(html_content, selectors)
+        scraping_details["cleaned_text"] = result
+        return result
+    cleaner.clean_html = debug_clean_html
+
     registry = ScaffoldRegistry([])  # empty registry is fine for fallback scraping
     
     pipeline = PipelineAdapter(
@@ -95,8 +120,32 @@ def main() -> None:
     
     try:
         results = orchestrator.scrape_and_validate([args.url])
+        
+        # Save full agent trace/audit trail to a file (saves on both success and rejection/failure)
+        output_data = {
+            "document_url": args.url,
+            "validation_passed": len(results) > 0,
+            "scraping_audit_trail": {
+                "selectors_used": scraping_details.get("selectors_used"),
+                "raw_html": scraping_details.get("raw_html", ""),
+                "cleaned_text": scraping_details.get("cleaned_text", "")
+            },
+            "agent_audit_trail": {
+                "extraction_agent": agent_outputs.get("extraction_agent"),
+                "structuring_agent": agent_outputs.get("structuring_agent"),
+                "validation_agent": agent_outputs.get("main_controller")
+            }
+        }
+        
+        output_file = "extracted_output.json"
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+            
+        print(f"\nSaved full agent audit trail to: {os.path.abspath(output_file)}")
+        print("-" * 60)
+        
         if results:
-            print("\n[SUCCESS] Document parsed and validated successfully!")
+            print("[SUCCESS] Document parsed and validated successfully!")
             doc = results[0]
             print(f"URL: {doc.document_url}")
             print(f"Language: {doc.language}")
@@ -107,7 +156,8 @@ def main() -> None:
             if len(doc.sections) > 3:
                 print(f"  ... and {len(doc.sections) - 3} more sections.")
         else:
-            print("\n[REJECTED] The document was parsed but marked as INVALID by the remote Gemini validator agent.")
+            print("[REJECTED] The document was parsed but marked as INVALID by the validation agent.")
+            
     except NotImplementedError as e:
         print(f"\n[OFFLINE FALLBACK TRIGGERED] Provider raised NotImplementedError:\n{e}")
         print("This is expected if your Ollama instance is offline or Gemini API keys are missing/invalid.")

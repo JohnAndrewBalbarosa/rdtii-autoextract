@@ -9,34 +9,50 @@ class TransportFactory(HtmlFetcherPort):
         self._static = static_fetcher
         self._dynamic = dynamic_fetcher
 
+    def _fetch_dynamic(self, url: str) -> FetchResult:
+        """Helper to invoke the dynamic fetcher."""
+        if hasattr(self._dynamic, "fetch_raw"):
+            return self._dynamic.fetch_raw(url)
+        dyn_html = self._dynamic.fetch(url)
+        return FetchResult(
+            url=url,
+            status=200,
+            content_type="text/html; charset=utf-8",
+            body=dyn_html.encode("utf-8", errors="replace"),
+        )
+
     def fetch_raw(self, url: str) -> FetchResult:
-        """Binary-safe fetch: delegates to static fetcher's fetch_raw if available."""
+        """Binary-safe fetch: delegates to static fetcher's fetch_raw, falling back to dynamic on blocks or failures."""
         if hasattr(self._static, "fetch_raw"):
-            result = self._static.fetch_raw(url)
-            # PDFs never need JS rendering; return immediately
-            if result.is_pdf:
-                return result
-            # For HTML, check if dynamic rendering is needed
             try:
-                html = result.text
-            except ValueError:
+                result = self._static.fetch_raw(url)
+                # PDFs never need JS rendering; return immediately
+                if result.is_pdf:
+                    return result
+                
+                try:
+                    html = result.text
+                except ValueError:
+                    return result
+
+                # Check if it was blocked or requires JS
+                if result.status in (403, 429) or self._is_headless_required(html):
+                    return self._fetch_dynamic(url)
                 return result
-            if self._is_headless_required(html):
-                # Dynamic fetcher may not have fetch_raw; fall back to fetch() wrapped in FetchResult
-                if hasattr(self._dynamic, "fetch_raw"):
-                    return self._dynamic.fetch_raw(url)
-                dyn_html = self._dynamic.fetch(url)
-                return FetchResult(
-                    url=url,
-                    status=200,
-                    content_type="text/html; charset=utf-8",
-                    body=dyn_html.encode("utf-8", errors="replace"),
-                )
-            return result
+            except Exception:
+                # Fall back to dynamic client on network exceptions or retry exhaustion
+                return self._fetch_dynamic(url)
+
         # Fallback: static fetcher has no fetch_raw, wrap str result
-        html = self._static.fetch(url)
-        if self._is_headless_required(html):
-            html = self._dynamic.fetch(url)
+        try:
+            html = self._static.fetch(url)
+        except Exception:
+            html = ""
+        if not html or self._is_headless_required(html):
+            try:
+                html = self._dynamic.fetch(url)
+            except Exception:
+                pass
         return FetchResult(
             url=url,
             status=200,

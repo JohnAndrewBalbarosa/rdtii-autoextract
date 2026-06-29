@@ -114,9 +114,9 @@ class LocalLLMProvider:
         
         res_text = ""
         try:
-            # Increase timeout to 180 seconds to give large models (like gpt-oss:20b)
+            # Increase timeout to 300 seconds to give large models (like gpt-oss:20b)
             # sufficient time to load weights and perform inference.
-            with urllib.request.urlopen(req, timeout=180) as response:
+            with urllib.request.urlopen(req, timeout=300) as response:
                 res_body = json.loads(response.read().decode("utf-8"))
                 res_text = res_body["message"]["content"]
         except urllib.error.URLError as e:
@@ -155,7 +155,7 @@ class LocalLLMProvider:
                 method="POST"
             )
             try:
-                with urllib.request.urlopen(req, timeout=180) as response:
+                with urllib.request.urlopen(req, timeout=300) as response:
                     res_body = json.loads(response.read().decode("utf-8"))
                     res_text = res_body["message"]["content"]
             except Exception as e:
