@@ -55,8 +55,8 @@ documentTitle, articleNumber, language). `Pillar = 6 | 7`,
 ### Module B — Data layer (`src/data/`) — the swap point
 The frontend's own hexagonal seam:
 - **`FindingsRepository`** interface: `list()` and `setReviewStatus(id, status)`.
-- **`createMockRepository()`** — in-memory adapter seeded with sample findings (SG/VN/TH/
-  PH/MY), immutable updates.
+- **`createMockRepository()`** — in-memory adapter seeded with sample findings (SG/MY/AU),
+  immutable updates.
 - **`getFindingsRepository()`** in `index.ts` — the **single line to change** to swap mock
   for a real REST adapter (`findings.api.ts`) hitting Dept 03's FastAPI. **No UI edits
   needed.** This is the analog of `run.py`'s adapter wiring on the backend.

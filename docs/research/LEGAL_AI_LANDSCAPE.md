@@ -3,7 +3,7 @@
 Research-first pass for the **Legal Expert module** + autonomous-extraction platform vision.
 Decisions it serves (all confirmed with the architect):
 
-- **RDTII is the live target**; PH legal sites were illustrative only.
+- **RDTII is the live target**; the supplied SG/MY/AU legal inventories define the current demo scope.
 - **Hybrid by criticality:** agent *tags* + *interprets/verifies*; deterministic *assembles
   hierarchy + clusters* (the reproducible core).
 - **Phase the model:** deterministic rules + prompted LLM first; **LoRA adapter later** (design
