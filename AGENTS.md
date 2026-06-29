@@ -17,17 +17,74 @@ gh --version          # is gh installed?
 gh auth status        # authenticated? what token scopes?
 ```
 
-- **`gh` not installed** → STOP and guide the user: install from https://cli.github.com,
-  then `gh auth login`. Do not fake board state.
+- **`gh` not installed** → ask whether the user wants to install it.
+  - If **yes**, guide them: install from https://cli.github.com, then `gh auth login`.
+  - If **no** (or they want to stay manual), do **not** fake board state. Use the manual
+    GitHub handoff in §0.1 so the human can create/update the issue and add it to the board.
 - **Authenticated but token scopes lack `project`** → STOP and tell the user to run, in the
   session, the one interactive step (the agent cannot do OAuth):
   ```
   ! gh auth refresh -s project,read:project --hostname github.com
   ```
-  Continue once they confirm.
+  Continue once they confirm. If they do not want to refresh scopes, fall back to the manual
+  GitHub handoff in §0.1.
 - **No board exists yet** → bootstrap one (see §4).
 
 Never invent issue/board state. If a command fails, surface it.
+
+## 0.1 Manual GitHub handoff (when `gh` is unavailable or declined)
+
+If `gh` is missing, unauthenticated, missing required scopes, or the user does not want to
+install/auth it, the agent must prepare a **copy-paste-ready GitHub handoff** instead of
+claiming anything was created or moved.
+
+Provide the human these exact fields, filled for the task at hand:
+
+```md
+Repository: <OWNER>/<REPO>
+Project: Zetarix Delegation
+Project URL: https://github.com/users/JohnAndrewBalbarosa/projects/10
+Issue title: <short task title>
+Labels: delegation, dept:<name>, model-training[, hitl]
+Department: <01 Scraper | 02 Pipeline | 03 Platform | 04 Frontend>
+HITL Gate: <Yes | No>
+Role: AI + Human
+Status: Todo
+Start: <YYYY-MM-DD>
+Target: <YYYY-MM-DD or blank>
+
+Issue body:
+## Context
+<what exists now>
+
+## Why
+<why this work is needed>
+
+## Scope
+- <change 1>
+- <change 2>
+
+## Acceptance criteria
+- <observable result 1>
+- <observable result 2>
+
+## HITL
+- Human must review the diff/commit.
+- Human must manually move the card from In Review to Done after review.
+
+## Reverse-prompting seed
+<short reviewer hint / verification seed>
+```
+
+Then tell the human to do the following manually in GitHub:
+
+1. Create the issue with the title, labels, and body above.
+2. Add the issue to the `Zetarix Delegation` project.
+3. Set the project fields exactly as provided, starting with `Status = Todo`.
+4. Reply with the issue URL once the card exists.
+
+Until the human confirms the manual board update, the agent must not claim the task exists on
+the board, is in progress, or is in review.
 
 ---
 
@@ -50,6 +107,8 @@ Backlog → Todo → In Progress → In Review → Done
 ```
 
 - **Pick up a task** → move it to **In Progress**; set yourself (`Role`) and dates if unset.
+- If the board is being managed manually because `gh` is unavailable, give the human the exact
+  status/field changes to apply and say explicitly that the board state is awaiting manual update.
 - **Finish implementing** (code written, tests green, change committed and pushed) → move to
   **In Review** and comment the result on the issue (what you did + how to verify).
 - **AI work always stops at In Review. An AI agent must never move any item to Done**, close it
@@ -84,6 +143,13 @@ verification of logic and output, not only code review.
   KEEP/IGNORE.
 - Always show the human a concrete **preview of the output** and your **skip/keep decisions
   with reasons** before asking them to sign off.
+
+### Manual board transition notes (when the human is updating GitHub)
+- **Task intake**: tell the human to place the new issue in **Todo**.
+- **AI starts work**: tell the human to move **Todo → In Progress** and set dates/role if needed.
+- **AI finishes work**: tell the human to move **In Progress → In Review** and paste the
+  verification comment prepared by the agent.
+- **Final approval**: remind the human that only they may move **In Review → Done** after manual review.
 
 ## 4. Bootstrap a board on a new repo (automation recipe)
 
