@@ -9,7 +9,8 @@ which points here.)
 
 ## 0. Prerequisite check (do this first, every session)
 
-Before any board operation, verify the GitHub CLI:
+Before any board operation, verify the GitHub CLI. Never assume it is installed or
+authenticated; run both commands in the current session:
 
 ```bash
 gh --version          # is gh installed?
@@ -49,24 +50,32 @@ Backlog → Todo → In Progress → In Review → Done
 ```
 
 - **Pick up a task** → move it to **In Progress**; set yourself (`Role`) and dates if unset.
-- **Finish implementing** (code written, tests green, change committed) → move to **In Review**
-  and comment the result on the issue (what you did + how to verify).
-- **Do NOT move HITL items to Done yourself** (see §3).
+- **Finish implementing** (code written, tests green, change committed and pushed) → move to
+  **In Review** and comment the result on the issue (what you did + how to verify).
+- **AI work always stops at In Review. An AI agent must never move any item to Done**, close it
+  as completed, or self-approve it. Only a human may perform the final review and move it to
+  **Done** (see §3).
 
-## 3. Human-in-the-loop gate (the hard rule)
+## 3. Human review gate (the hard rule)
 
-An item with **`HITL Gate = Yes`** (or `Role = AI + Human`) is **proposed, not done**, until a
-human verifies it. The agent's job ends at **In Review**.
+Every AI-authored change is **proposed, not done**, until a human manually reviews the code.
+The agent's job always ends at **In Review**, regardless of the `HITL Gate` value.
+
+An item with **`HITL Gate = Yes`** (or `Role = AI + Human`) requires additional human
+verification of logic and output, not only code review.
 
 - The agent moves the card to **In Review** and clearly states **what the human must check**:
   - **Code** — read the diff / commit
   - **Logic** — is the approach/design correct
   - **Output** — does the produced result look right (e.g. the scrape JSON trace, the F1
     numbers, the extracted rows)
-- The **human** verifies manually and, only if it passes, moves the card to **Done**
-  (or tells the agent to). The agent must **never** self-approve a HITL item to Done.
-- **Non-HITL** items (`HITL Gate = No`): the agent may move to **Done** once tests pass AND
-  the change is committed/pushed.
+- The **human** verifies manually and, only if it passes, personally moves the card to
+  **Done**. Telling the agent that a review passed does not authorize the agent to set Done;
+  the human must perform the board transition.
+- **Non-HITL** items (`HITL Gate = No`) still require human code review. Once tests pass and
+  the change is committed/pushed, the agent moves the item to **In Review** and stops there.
+- An AI agent must never set **Done** through the UI, `gh`, GraphQL, an API, automation, or a
+  draft-card bootstrap operation.
 
 ### Output verification helpers (use these to make HITL fast)
 - Scraping: `python -m tools.inspect_dom --url <u> --json out/trace.json --headless` →
@@ -89,7 +98,8 @@ If no board exists (or for another project), create it with gh:
 4. Create labels (`delegation`, `dept:*`, `hitl`, `model-training`).
 5. One issue per task with the rich body template; add each to the board; set
    Department / HITL / Role / Status / Start / Target.
-6. Add `Done` draft cards for already-shipped work.
+6. Add historical shipped-work draft cards as **In Review**; a human may verify and move them
+   to **Done**.
 
 ### gh gotchas (learned)
 - `gh project item-list` defaults to 30 items → pass `--limit 100`.
@@ -98,8 +108,12 @@ If no board exists (or for another project), create it with gh:
 - Setting a single-select needs the **option id** (from `field-list --format json`), not its name.
 - Dedupe draft cards by title; **never delete real issues**.
 
-## 5. Definition of Done
+## 5. Definition of Done and AI completion boundary
 
-A task is **Done** only when: acceptance criteria met · tests green · change committed &
-pushed · (for HITL) a human verified code/logic/output and approved the move. Otherwise it
-stays in **In Review** or earlier.
+A task is ready for human review when: acceptance criteria met · tests green · change
+committed and pushed · verification instructions and output preview posted. At that point,
+the AI moves it to **In Review** and stops.
+
+A task is **Done** only when a human has manually reviewed the code and personally moved the
+card to Done. For `HITL Gate = Yes`, the human must also verify logic and output. An AI agent
+must never perform the Done transition; otherwise the task stays in **In Review** or earlier.
