@@ -1,5 +1,22 @@
+import re
+
 from core.ports import HtmlFetcherPort
 from adapters.botting.l4_transport.fetch_result import FetchResult
+
+# Single-page-app shells render their real content with JS; the static HTML carries only a
+# framework marker and little visible text. Detecting these triggers the dynamic engine.
+_SPA_MARKERS = (
+    "ng-version",
+    "<app-root",
+    "data-reactroot",
+    "__next_data__",
+    "window.__nuxt__",
+    'id="root"',
+    'id="__next"',
+)
+_SPA_MIN_VISIBLE_CHARS = 1200
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
 
 
 class TransportFactory(HtmlFetcherPort):
@@ -53,16 +70,33 @@ class TransportFactory(HtmlFetcherPort):
             # Binary content (PDF) — return empty string to satisfy HtmlFetcherPort
             return ""
 
+    def fetch_raw_dynamic(self, url: str) -> FetchResult:
+        """Force the dynamic (JS-rendering) engine — used when a scaffold declares a domain
+        dynamic, or as a retry when static extraction yields nothing legislative."""
+        if hasattr(self._dynamic, "fetch_raw"):
+            return self._dynamic.fetch_raw(url)
+        dyn_html = self._dynamic.fetch(url)
+        return FetchResult(
+            url=url,
+            status=200,
+            content_type="text/html; charset=utf-8",
+            body=dyn_html.encode("utf-8", errors="replace"),
+        )
+
     def _is_headless_required(self, html_content: str) -> bool:
-        """Heuristic detection of JS-heavy or empty content."""
+        """Heuristic detection of JS-heavy or empty content (incl. unrendered SPA shells)."""
+        lower_content = html_content.lower()
         indicators = [
             "javascript is required",
             "enable javascript",
             "you need to enable javascript",
         ]
-        lower_content = html_content.lower()
         if any(ind in lower_content for ind in indicators):
             return True
         if len(html_content) < 500 and "<script" in lower_content:
             return True
+        if any(marker in lower_content for marker in _SPA_MARKERS):
+            visible = _WS_RE.sub(" ", _TAG_RE.sub(" ", html_content)).strip()
+            if len(visible) < _SPA_MIN_VISIBLE_CHARS:
+                return True
         return False

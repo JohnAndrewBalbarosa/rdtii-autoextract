@@ -27,11 +27,14 @@ import os
 import re
 import sys
 import time
+from collections import deque, namedtuple
 from datetime import date
+from urllib.parse import urljoin, urlparse
 
 # Make `from core...` / `from adapters...` resolve when run as a plain script from any cwd.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from adapters.extraction.text_helpers import clean_law_title  # noqa: E402
 from core.domain.document import CrawledDocument  # noqa: E402
 from core.domain.entities import DiscoveryTag, Finding, Pillar  # noqa: E402
 from core.domain.indicator_codes import to_canonical  # noqa: E402
@@ -56,6 +59,30 @@ _COUNTRY_ALIASES: dict[str, str] = {
     "my": "Malaysia",
     "mys": "Malaysia",
     "malaysia": "Malaysia",
+    "cn": "China",
+    "chn": "China",
+    "china": "China",
+    "in": "India",
+    "ind": "India",
+    "india": "India",
+    "id": "Indonesia",
+    "idn": "Indonesia",
+    "indonesia": "Indonesia",
+    "la": "Lao PDR",
+    "lao": "Lao PDR",
+    "laos": "Lao PDR",
+    "lao pdr": "Lao PDR",
+    "lao people's democratic republic": "Lao PDR",
+    "mn": "Mongolia",
+    "mng": "Mongolia",
+    "mongolia": "Mongolia",
+    "ru": "Russian Federation",
+    "rus": "Russian Federation",
+    "russia": "Russian Federation",
+    "russian federation": "Russian Federation",
+    "th": "Thailand",
+    "tha": "Thailand",
+    "thailand": "Thailand",
 }
 
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
@@ -144,26 +171,36 @@ def _with_tag(finding: Finding, tag: DiscoveryTag) -> Finding:
 
 
 def _default_extractor():
-    """Default live ``ProvisionExtractor``: the deterministic mock reference adapter.
+    """Default live ``ProvisionExtractor``: tag→set-trie matcher, keyword mock as fallback.
 
-    The mock proves the crawl→extract→tag→emit plumbing offline and emits REAL verbatim
-    snippets. A real LLM extractor swaps in via the same port (``--source live`` plus a
-    custom ``extractor=`` injection) with no other code change.
+    Primary is the deterministic ``TagMatchProvisionExtractor`` — section tags matched
+    against indicator definitions via the ``SetTrieIndex`` (the documented §9 algorithm,
+    now wired to live data). When a document yields no tag matches it falls back per-document
+    to the keyword ``MockProvisionExtractor`` so the live path still produces rows. A real
+    LLM extractor can swap in behind the same port with no other code change.
     """
+    from adapters.extraction.fallback_provision_extractor import FallbackProvisionExtractor
     from adapters.extraction.mock_provision_extractor import MockProvisionExtractor
+    from adapters.extraction.tagmatch_provision_extractor import TagMatchProvisionExtractor
 
-    return MockProvisionExtractor()
+    return FallbackProvisionExtractor(TagMatchProvisionExtractor(), MockProvisionExtractor())
 
 
 def _default_fetcher():
-    """Default live fetcher: the real ``HttpClient`` (an ``HtmlFetcherPort`` with fetch_raw).
+    """Default live fetcher: a ``TransportFactory`` (static ``HttpClient`` + dynamic Playwright).
 
-    Any object exposing ``fetch_raw(url) -> FetchResult`` is acceptable; tests inject a
-    fake so the live path runs offline.
+    Static fetch is tried first; the factory switches to the JS-rendering engine for SPA
+    shells (Angular/React/Next markers + sparse visible text). ``fetch_raw_dynamic`` is also
+    used when a scaffold declares a domain dynamic or when static extraction yields nothing
+    legislative. Live JS rendering needs a browser binary (``playwright install chromium``);
+    without it the dynamic engine fails gracefully and the run falls back. Tests inject a fake
+    fetcher so the live path runs offline.
     """
+    from adapters.botting.l4_transport.factory import TransportFactory
     from adapters.botting.l4_transport.http_client import HttpClient
+    from adapters.botting.l4_transport.playwright_client import PlaywrightClient
 
-    return HttpClient()
+    return TransportFactory(HttpClient(), PlaywrightClient())
 
 
 def _seed_urls(country: str, pillar: int, docs_dir: str | None = None) -> list[str]:
@@ -181,14 +218,42 @@ def _seed_urls(country: str, pillar: int, docs_dir: str | None = None) -> list[s
     return urls
 
 
-def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | None:
-    """Fetch ``url`` and reduce it to a ``CrawledDocument`` (PDF or cleaned HTML).
+# A fetched-and-cleaned page. ``doc`` is the law CrawledDocument when the page is statutory
+# (or a PDF); ``html`` is the raw markup kept even for non-legislative pages so an index can
+# still surface its article links.
+_Page = namedtuple("_Page", "url scaffold html doc")
 
-    Returns ``None`` on any fetch/parse failure (logged, never raised) so one dead link
-    cannot crash the run.
+# HTML article links are followed; PDF/off-domain are not. Generic default when a domain has
+# no scaffold so plain HTML law sites still crawl.
+_DEFAULT_ARTICLE_LINK_SELECTOR = "main a, article a, #content a, .content a"
+
+# Bounds keep the crawl polite and finite on large government registers.
+_MAX_CRAWL_PAGES = 25
+_MAX_LINKS_PER_PAGE = 15
+_MAX_CRAWL_DEPTH = 1  # seed (index) -> its article pages
+
+
+def _fetch_clean(url: str, country: str, fetcher, logger) -> _Page | None:
+    """Fetch ``url``, clean it, and classify it without discarding navigational HTML.
+
+    Returns a ``_Page`` carrying the raw HTML (for link discovery) and a ``CrawledDocument``
+    in ``doc`` when the page is statutory (or a PDF). A non-legislative HTML page yields
+    ``doc=None`` but keeps ``html`` so its links can still be followed. Returns ``None`` only
+    on a fetch failure (logged, never raised) so one dead link cannot crash the run.
     """
+    from adapters.botting.scaffolds.scaffold_registry import ScaffoldRegistry
+
+    scaffold = ScaffoldRegistry().get_scaffold_for_url(url)
+    fetch_url = scaffold.get_fetch_url(url) if scaffold else url
+    transport = scaffold.get_transport_type() if scaffold else "auto"
+
+    # Scaffold declares the domain a JS-rendered SPA → prefer the dynamic engine up front.
+    use_dynamic_first = transport == "dynamic" and hasattr(fetcher, "fetch_raw_dynamic")
     try:
-        result = fetcher.fetch_raw(url)
+        if use_dynamic_first:
+            result = fetcher.fetch_raw_dynamic(fetch_url)
+        else:
+            result = fetcher.fetch_raw(fetch_url)
     except Exception as exc:  # network-less / blocked / timeout — skip, don't crash
         logger.warning("fetch failed url=%s (%s); skipping", url, exc)
         return None
@@ -198,41 +263,260 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
             from adapters.botting.l4_transport.pdf_parser import PdfParser
 
             text = PdfParser().extract_text(result.body)
-            return CrawledDocument(url=url, economy=country, text=text, is_pdf=True)
+            doc = CrawledDocument(url=url, economy=country, text=text, is_pdf=True)
+            return _Page(url=url, scaffold=scaffold, html=None, doc=doc)
 
         from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
+        from adapters.botting.l6_presentation.html_sections import join_section_text
+        from core.pipeline.legislation_detector import is_legislative
 
-        text = DomCleaner().clean_html(result.text)
-        return CrawledDocument(url=url, economy=country, text=text, is_pdf=False)
+        cleaner = DomCleaner()
+        selectors = dict(scaffold.get_custom_selectors()) if scaffold else {}
+        if scaffold:
+            selectors["boilerplate"] = scaffold.get_boilerplate_selectors()
+
+        def _extract(res):
+            secs = cleaner.extract_sections(res.text, selectors)
+            txt = join_section_text(secs) or cleaner.clean_html(res.text, selectors)
+            return secs, txt
+
+        sections, text = _extract(result)
+
+        # Outcome-driven dynamic retry: static content is empty or not legislative, and a
+        # JS-rendering engine is available (and we did not already render dynamically).
+        if (
+            not use_dynamic_first
+            and not is_legislative(text)
+            and hasattr(fetcher, "fetch_raw_dynamic")
+        ):
+            try:
+                dyn = fetcher.fetch_raw_dynamic(fetch_url)
+                dyn_sections, dyn_text = _extract(dyn)
+                if is_legislative(dyn_text) or len(dyn_text) > len(text):
+                    result, sections, text = dyn, dyn_sections, dyn_text
+                    logger.info("dynamic retry improved content url=%s len=%d", url, len(text))
+            except Exception as exc:
+                logger.warning("dynamic retry failed url=%s (%s)", url, exc)
+
+        try:
+            raw_html = result.text
+        except Exception:
+            raw_html = None
+
+        # Boundary guard: a page that is not legislation (news/landing/index) yields no law
+        # doc, but its HTML is kept so the crawler can still follow its links to real statutes.
+        if not is_legislative(text):
+            logger.info("non-legislative HTML url=%s (chars=%d); links only", url, len(text))
+            return _Page(url=url, scaffold=scaffold, html=raw_html, doc=None)
+
+        act_title = ""
+        try:
+            detected = cleaner.detect_act_title(result.text, selectors)
+            act_title = clean_law_title(detected) if detected else ""
+        except Exception:
+            act_title = ""
+
+        doc = CrawledDocument(
+            url=url,
+            economy=country,
+            text=text,
+            is_pdf=False,
+            sections=tuple(sections),
+            title=act_title,
+        )
+        return _Page(url=url, scaffold=scaffold, html=raw_html, doc=doc)
     except Exception as exc:  # parse/decode failure — skip this doc
         logger.warning("parse failed url=%s (%s); skipping", url, exc)
         return None
 
 
+def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | None:
+    """Fetch ``url`` and reduce it to a law ``CrawledDocument`` (PDF or statutory HTML).
+
+    Thin gated wrapper over :func:`_fetch_clean`: non-legislative HTML returns ``None``.
+    """
+    page = _fetch_clean(url, country, fetcher, logger)
+    return page.doc if page else None
+
+
+def _discover_article_links(html: str | None, scaffold, base_url: str) -> list[str]:
+    """Same-domain, non-PDF article links found in ``html``, resolved to absolute URLs.
+
+    Off-domain links, PDFs, fragments-only self-links and duplicates are dropped so the
+    crawl stays on the law portal and never wanders or loops.
+    """
+    if not html:
+        return []
+    from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
+
+    selector = _DEFAULT_ARTICLE_LINK_SELECTOR
+    if scaffold:
+        custom = scaffold.get_custom_selectors() or {}
+        if custom.get("article_links"):
+            selector = custom["article_links"]
+
+    found = DomCleaner().discover_links(html, {"article_links": selector}).get("article_links", [])
+    base_host = urlparse(base_url).netloc
+    self_url = base_url.split("#", 1)[0]
+
+    links: list[str] = []
+    seen: set[str] = set()
+    for href in found:
+        if not href:
+            continue
+        absolute = urljoin(base_url, href).split("#", 1)[0]
+        parsed = urlparse(absolute)
+        if parsed.scheme not in ("http", "https"):
+            continue
+        if parsed.netloc != base_host:  # stay on the seed's domain
+            continue
+        if absolute.lower().endswith(".pdf"):  # HTML only — no PDF
+            continue
+        if absolute == self_url or absolute in seen:
+            continue
+        seen.add(absolute)
+        links.append(absolute)
+    return links
+
+
+def _crawl_site(
+    seeds: list[str],
+    country: str,
+    fetcher,
+    logger,
+    *,
+    max_pages: int = _MAX_CRAWL_PAGES,
+    max_depth: int = _MAX_CRAWL_DEPTH,
+) -> list[CrawledDocument]:
+    """Bounded breadth-first crawl: follow each seed's article links to the real law pages.
+
+    A non-legislative seed (an index/landing page) contributes no law doc but is mined for
+    links. Visited URLs, a per-page link cap and a total-page cap keep the crawl finite.
+    """
+    visited: set[str] = set()
+    queue: deque[tuple[str, int]] = deque((seed, 0) for seed in seeds)
+    docs: list[CrawledDocument] = []
+
+    while queue and len(visited) < max_pages:
+        url, depth = queue.popleft()
+        normalized = url.split("#", 1)[0]
+        if normalized in visited:
+            continue
+        visited.add(normalized)
+
+        page = _fetch_clean(url, country, fetcher, logger)
+        if page is None:
+            continue
+        if page.doc is not None:
+            docs.append(page.doc)
+
+        if page.html and depth < max_depth:
+            added = 0
+            for link in _discover_article_links(page.html, page.scaffold, url):
+                if link in visited:
+                    continue
+                queue.append((link, depth + 1))
+                added += 1
+                if added >= _MAX_LINKS_PER_PAGE:
+                    break
+
+    if queue and len(visited) >= max_pages:
+        logger.info("crawl page cap reached (%d); %d url(s) left unvisited", max_pages, len(queue))
+    return docs
+
+
+def _nodes_from_doc(doc: CrawledDocument):
+    """Tag a crawled document's sections into ``ConceptNode``s (the cluster seed).
+
+    Section ids are URL-qualified so they stay unique across documents in the cluster graph.
+    """
+    from adapters.extraction.section_tagger import tag_section
+
+    nodes = []
+    if doc.sections:
+        for index, section in enumerate(doc.sections):
+            fragment = f"#{section.anchor}" if section.anchor else f"#sec-{index}"
+            nodes.append(
+                tag_section(
+                    section_id=f"{doc.url}{fragment}",
+                    document_url=doc.url,
+                    heading=section.heading,
+                    text=section.text,
+                    path=section.path,
+                )
+            )
+    else:
+        nodes.append(
+            tag_section(
+                section_id=doc.url or "doc",
+                document_url=doc.url,
+                heading="",
+                text=doc.text or "",
+                path=(),
+            )
+        )
+    return nodes
+
+
 def _build_live_findings(country, pillar, logger, docs_dir, fetcher, extractor):
-    """Real crawl→extract path. Returns a (possibly empty) list of Findings.
+    """Real crawl→extract path. Returns ``(findings, concept_nodes)``.
 
     Resolves seed URLs for country+pillar, fetches each (offline-safe: failures are
-    logged and skipped), builds a ``CrawledDocument`` and runs the injected
-    ``ProvisionExtractor``. With the default mock extractor this yields Findings whose
-    ``verbatim_snippet``/``article_section`` are populated from the real document text.
+    logged and skipped), builds a ``CrawledDocument``, tags its sections into
+    ``ConceptNode``s (the cluster-graph seed), and runs the injected ``ProvisionExtractor``.
     """
     seed = _seed_urls(country, pillar, docs_dir)
     logger.info("live crawl seeded with %d url(s)", len(seed))
 
     findings: list[Finding] = []
-    for url in seed:
-        doc = _crawl_one(url, country, fetcher, logger)
-        if doc is None:
-            continue
+    nodes: list = []
+    # Follow each seed's article links to the real law pages (index → statutes), then extract.
+    for doc in _crawl_site(seed, country, fetcher, logger):
+        nodes.extend(_nodes_from_doc(doc))
         try:
             doc_findings = extractor.extract(doc, pillar)
         except Exception as exc:  # one bad extraction must not sink the run
-            logger.warning("extract failed url=%s (%s); skipping", url, exc)
+            logger.warning("extract failed url=%s (%s); skipping", doc.url, exc)
             continue
-        logger.info("extracted %d finding(s) from url=%s", len(doc_findings), url)
+        logger.info("extracted %d finding(s) from url=%s", len(doc_findings), doc.url)
         findings.extend(doc_findings)
-    return findings
+    return findings, nodes
+
+
+def _write_cluster_artifact(nodes, path, logger, matched_ids=None) -> None:
+    """Build + write the cluster-graph artifact (+ clustering-assisted NEW candidates).
+
+    Empty ``nodes`` → empty artifact. ``matched_ids`` (the section ids the matcher mapped)
+    drive ``discovery_candidates``: unmatched members of a KNOWN-bearing community. Failures
+    (e.g. a missing optional clustering dep) degrade to an empty artifact and a warning so
+    the run never crashes on the secondary output.
+    """
+    from core.domain.cluster import ClusterGraph
+    from core.pipeline.cluster_pipeline import (
+        build_clusters,
+        discovery_candidates,
+        write_clusters,
+    )
+
+    graph = ClusterGraph()
+    if nodes:
+        try:
+            from adapters.clustering import LouvainCommunityDetector, TagOverlapScorer
+
+            graph = build_clusters(nodes, TagOverlapScorer(), LouvainCommunityDetector())
+        except Exception as exc:  # pragma: no cover - defensive (optional dep / bad data)
+            logger.warning("clustering failed (%s); writing empty cluster artifact", exc)
+            graph = ClusterGraph()
+
+    candidates = discovery_candidates(graph, matched_ids or set())
+    write_clusters(graph, path, candidates)
+    logger.info(
+        "clusters: %d communities, %d edges, %d discovery-candidate group(s) -> %s",
+        len(graph.communities),
+        len(graph.edges),
+        len(candidates),
+        path,
+    )
 
 
 def _configure_logger(out_dir: str) -> tuple[logging.Logger, str]:
@@ -302,10 +586,11 @@ def main(argv: list[str] | None = None, *, fetcher=None, extractor=None) -> int:
 
     source_used = args.source
     findings = None
+    concept_nodes: list = []
     if args.source == "live":
         live_fetcher = fetcher if fetcher is not None else _default_fetcher()
         live_extractor = extractor if extractor is not None else _default_extractor()
-        findings = _build_live_findings(
+        findings, concept_nodes = _build_live_findings(
             country, args.pillar, logger, args.docs_dir, live_fetcher, live_extractor
         )
         if not findings:
@@ -338,15 +623,22 @@ def main(argv: list[str] | None = None, *, fetcher=None, extractor=None) -> int:
         processing_time=processing_time,
     )
 
+    # Second artifact: the cluster graph over the crawled section seed (empty in gold mode),
+    # with clustering-assisted NEW-discovery candidates keyed off mapped section ids.
+    clusters_path = os.path.join(out_dir, "clusters.json")
+    matched_ids = {f.location_ref for f in findings if f.location_ref}
+    _write_cluster_artifact(concept_nodes, clusters_path, logger, matched_ids)
+
     new_count = sum(1 for f in findings if f.discovery_tag is DiscoveryTag.NEW)
     known_count = len(findings) - new_count
     logger.info(
-        "done rows=%d new=%d known=%d csv=%s json=%s",
+        "done rows=%d new=%d known=%d csv=%s json=%s clusters=%s",
         len(findings),
         new_count,
         known_count,
         csv_path,
         json_path,
+        clusters_path,
     )
 
     # ASCII-only summary: some Windows consoles use cp1252 and choke on non-ASCII.

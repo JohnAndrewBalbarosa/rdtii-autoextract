@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 from datetime import date
 
+import openpyxl
 import pytest
 
 from core.domain.entities import DiscoveryTag, Finding, Pillar
@@ -47,12 +49,12 @@ def test_csv_columns_match_p14_order_exactly():
     assert CSV_COLUMNS == (
         "Economy",
         "Law Name",
-        "Law Number/Ref",
+        "Law Number / Ref",
         "Last Amended",
         "Indicator ID",
         "Article / Section",
         "Discovery Tag",
-        "Location Ref.",
+        "Location Reference",
         "Verbatim Snippet",
         "Mapping Rationale",
         "Source URL",
@@ -76,12 +78,12 @@ def test_finding_maps_to_expected_csv_row_dict():
     assert row == {
         "Economy": "Thailand",
         "Law Name": "Personal Data Protection Act 2019",
-        "Law Number/Ref": "B.E. 2562",
+        "Law Number / Ref": "B.E. 2562",
         "Last Amended": "2019",
         "Indicator ID": "P6-I1",
         "Article / Section": "Section 26(2)",
         "Discovery Tag": "NEW",
-        "Location Ref.": "p.12",
+        "Location Reference": "p.12",
         "Verbatim Snippet": "The data controller shall not send or transfer personal data to a foreign country...",
         "Mapping Rationale": "Directly governs cross-border personal data transfer (Pillar 6).",
         "Source URL": "https://www.ratchakitcha.soc.go.th/pdpa-2019",
@@ -105,10 +107,21 @@ def test_blank_optional_fields_render_empty_not_none():
     )
     row = findings_to_csv_dicts([finding])[0]
     assert row["Last Amended"] == ""
-    assert row["Law Number/Ref"] == ""
-    assert row["Location Ref."] == ""
+    assert row["Law Number / Ref"] == ""
+    assert row["Location Reference"] == ""
     assert row["Discovery Tag"] == "KNOWN"  # default
     assert row["Confidence"] == "0.50"
+
+
+def test_csv_columns_match_output_template_31may():
+    template = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "docs", "OUTPUT_TEMPLATE_31MAY.xlsx")
+    )
+    workbook = openpyxl.load_workbook(template, data_only=True)
+    sheet = workbook["Output Data"]
+    headers = tuple(sheet.cell(4, column).value for column in range(1, len(CSV_COLUMNS) + 1))
+
+    assert headers == CSV_COLUMNS
 
 
 # --- JSON grouping/envelope ---

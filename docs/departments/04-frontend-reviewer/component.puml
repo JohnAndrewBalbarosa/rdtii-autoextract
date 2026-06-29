@@ -1,0 +1,81 @@
+@startuml zetarix-frontend-reviewer
+title Zetarix — Department 04: Frontend / Reviewer UI (Component View)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultTextAlignment center
+
+package "Next.js shell — app/" as SHELL {
+  [layout.tsx\nroot + styles] as LAYOUT
+  [page.tsx\nserver component (SSR)] as PAGE
+}
+
+package "Domain — src/domain" as DOM {
+  [finding.ts\nFinding · Pillar · ReviewStatus] as FINDING
+}
+
+package "Data layer — src/data (swap point)" as DATA {
+  interface FindingsRepository
+  [findings.mock.ts\nin-memory + seed] as MOCK
+  [index.ts\ngetFindingsRepository()] as GATE
+  [findings.api.ts\n(future REST)] as APIADP
+}
+
+package "Review feature — src/features/review" as FEAT {
+  [ReviewConsole.tsx\n(use client)] as RC
+  [use-review-state.ts\ncontainer hook] as HOOK
+  [filters.ts\npure] as FILT
+  [FilterBar.tsx] as FB
+  [FindingRow.tsx] as ROW
+  [SummaryStats.tsx] as STATS
+}
+
+package "UI primitives — src/ui" as UI {
+  [ConfidenceMeter] as CM
+  [PillarTag] as PT
+  [StatusBadge] as SB
+}
+
+package "Dept 03 backend (future seam)" as BE {
+  [FastAPI /findings] as REST
+}
+
+' realizations
+MOCK ..|> FindingsRepository
+APIADP ..|> FindingsRepository
+GATE --> MOCK : default
+GATE ..> APIADP : when env set
+APIADP ..> REST : HTTP (future)
+
+' shell wiring
+LAYOUT --> PAGE
+PAGE --> GATE : list() (SSR fetch)
+PAGE --> RC : initialFindings
+
+' feature wiring
+RC --> HOOK
+HOOK --> GATE : repository
+HOOK --> FILT : applyFilters
+RC --> FB
+RC --> STATS
+RC --> ROW
+ROW --> CM
+ROW --> PT
+ROW --> SB
+
+' domain dependency direction (inward)
+HOOK --> FINDING
+FILT --> FINDING
+ROW --> FINDING
+STATS --> FINDING
+PT --> FINDING
+SB --> FINDING
+
+note bottom of DATA
+  UI depends on the FindingsRepository
+  INTERFACE, never on mock/REST directly.
+  Swap = one line in index.ts.
+  Finding (TS) mirrors backend entities.py.
+end note
+
+@enduml

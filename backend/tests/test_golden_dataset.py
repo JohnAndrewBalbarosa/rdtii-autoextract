@@ -15,6 +15,7 @@ from core.pipeline.golden_dataset import (
     load_gold_records,
     load_reference_items,
 )
+from core.pipeline.scoring import gold_to_match_item, score
 
 _DOCS = os.path.join(os.path.dirname(__file__), "..", "..", "docs")
 _HAS_DB = os.path.exists(os.path.join(_DOCS, "ESCAP-RDTII-2.1_ Round 1 Database.xlsx"))
@@ -49,6 +50,32 @@ def test_multi_column_references_are_collected(gold):
 def test_round1_countries_present(gold):
     countries = {r.country for r in gold}
     assert {"Australia", "Singapore", "Malaysia"} <= countries
+
+
+def test_round1_and_round2_training_countries_present(gold):
+    countries = {r.country for r in gold}
+    assert {
+        "Australia",
+        "Singapore",
+        "Malaysia",
+        "China",
+        "India",
+        "Indonesia",
+        "Lao PDR",
+        "Mongolia",
+        "Russian Federation",
+        "Thailand",
+    } <= countries
+
+
+def test_gold_records_score_perfectly_against_themselves(gold):
+    items = [gold_to_match_item(record) for record in gold]
+    report = score(items, items)
+
+    assert report.true_positives == len(gold)
+    assert report.false_positives == 0
+    assert report.false_negatives == 0
+    assert report.f1 == 1.0
 
 
 def test_reference_items_load(gold):

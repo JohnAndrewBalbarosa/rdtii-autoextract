@@ -42,6 +42,13 @@ def test_match_requires_same_pillar():
     assert not is_match(_item(pillar=6), _item(pillar=7))
 
 
+def test_match_requires_same_indicator_even_with_shared_url():
+    pred = _item(indicator="6.4", act="Privacy Act 1988", urls=("https://legislation.gov.au/C2004",))
+    gold = _item(indicator="6.1", act="Privacy Act 1988", urls=("https://legislation.gov.au/C2004",))
+
+    assert not is_match(pred, gold)
+
+
 def test_match_on_close_act_name():
     assert is_match(_item(act="My Health Records Act 2012"), _item(act="My Health Records Act 2020"))
 

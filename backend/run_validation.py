@@ -12,6 +12,7 @@ does not emit ``Finding`` rows in this entry point. Once it does, pass them to
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from collections import defaultdict
@@ -19,7 +20,12 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.pipeline.golden_dataset import load_gold_records, load_reference_items
-from core.pipeline.scoring import discovery_diff, gold_to_match_item, score
+from core.pipeline.scoring import (
+    discovery_diff,
+    gold_to_match_item,
+    match_items_from_json_objects,
+    score,
+)
 
 _DOCS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs")
 _RULE = "=" * 78
@@ -69,9 +75,51 @@ def main() -> None:
     print(f"  precision={self_report.precision:.3f}  recall={self_report.recall:.3f}  f1={self_report.f1:.3f}")
     print(f"  novel-vs-itself (must be 0): {len(discovery_diff([gold_to_match_item(r) for r in gold], list(gold), refs))}")
 
+    predictions_path = _predictions_arg()
     print("\n" + _RULE)
-    print(" PIPELINE ACCURACY: not wired yet - feed Findings to score(preds, gold).")
+    if predictions_path:
+        _report_live_accuracy(predictions_path, list(gold))
+    else:
+        print(" PIPELINE ACCURACY: pass --predictions <output.json> for live F1 vs gold.")
+        print(_RULE)
+
+
+def _predictions_arg() -> str | None:
+    """Read ``--predictions <path>`` from argv (a live run's output.json)."""
+    argv = sys.argv[1:]
+    for i, token in enumerate(argv):
+        if token == "--predictions" and i + 1 < len(argv):
+            return argv[i + 1]
+        if token.startswith("--predictions="):
+            return token.split("=", 1)[1]
+    return None
+
+
+def _report_live_accuracy(path: str, gold) -> None:
+    """Score real predicted findings (live output.json) against gold and print true F1."""
+    print(f" PIPELINE ACCURACY (live): {path}")
     print(_RULE)
+    if not os.path.exists(path):
+        print(f"  predictions file not found: {path}")
+        return
+    with open(path, encoding="utf-8") as handle:
+        objects = json.load(handle)
+    preds = match_items_from_json_objects(objects)
+    report = score(preds, list(gold))
+    print(f"  predicted rows: {len(preds)}")
+    print(
+        f"  overall  TP={report.true_positives} FP={report.false_positives} "
+        f"FN={report.false_negatives}"
+    )
+    print(
+        f"  overall  precision={report.precision:.3f}  recall={report.recall:.3f}  "
+        f"f1={report.f1:.3f}"
+    )
+    for pillar_id, sub in sorted((report.per_pillar or {}).items()):
+        print(
+            f"  pillar {pillar_id}: precision={sub.precision:.3f}  recall={sub.recall:.3f}  "
+            f"f1={sub.f1:.3f}  (TP={sub.true_positives} FP={sub.false_positives} FN={sub.false_negatives})"
+        )
 
 
 if __name__ == "__main__":

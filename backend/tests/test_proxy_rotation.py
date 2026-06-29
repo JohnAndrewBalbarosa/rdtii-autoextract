@@ -6,7 +6,11 @@ import pytest
 
 from adapters.botting.l4_transport.proxy_config import ProxyConfig
 from adapters.botting.l4_transport.http_client import HttpClient
-from adapters.botting.l4_transport.simulated_proxy_server import ThreadedProxyServer, get_simulated_residential_ip
+from adapters.botting.l4_transport.simulated_proxy_server import (
+    COUNTRIES_DB,
+    ThreadedProxyServer,
+    get_simulated_residential_ip,
+)
 
 # A simple target server to verify that requests are correctly forwarded by the proxy.
 class MockTargetHandler(BaseHTTPRequestHandler):
@@ -71,6 +75,25 @@ def test_deterministic_ip_generation():
     ip_info_3 = get_simulated_residential_ip("user-session-xyz")
     assert ip_info_1["ip"] != ip_info_3["ip"]
 
+
+def test_simulated_country_scope_matches_round1_csv_inventory():
+    expected = {
+        ("Australia", "AU"),
+        ("Malaysia", "MY"),
+        ("Singapore", "SG"),
+    }
+
+    assert {(item["country"], item["code"]) for item in COUNTRIES_DB} == expected
+
+    generated = {
+        (info["country"], info["country_code"])
+        for info in (
+            get_simulated_residential_ip(f"inventory-scope-{index}")
+            for index in range(100)
+        )
+    }
+    assert generated <= expected
+
 def test_http_client_with_simulated_proxy():
     # Find free ports
     target_port = get_free_port()
@@ -134,4 +157,3 @@ def test_free_proxy_list_integration(monkeypatch):
     assert config.get_active_proxy_url() == "http://192.168.1.100:80"
     assert config.get_active_proxy_url() == "http://192.168.1.101:8080"
     assert config.get_active_proxy_url() == "http://192.168.1.100:80"  # Wrapped around
-

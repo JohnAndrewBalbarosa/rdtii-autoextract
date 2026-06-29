@@ -31,6 +31,10 @@ from dataclasses import dataclass
 from core.domain.document import CrawledDocument
 from core.domain.entities import DiscoveryTag, Finding, Pillar
 from core.domain.indicator_codes import to_canonical
+from adapters.botting.l6_presentation.html_sections import (
+    format_location_ref,
+    section_for_offset,
+)
 
 # --- Tunables (named constants — no magic numbers) ---------------------------
 
@@ -57,6 +61,14 @@ _PILLAR_KEYWORDS: dict[int, tuple[tuple[str, str], ...]] = {
         ("localization", "6.2"),
         ("data residency", "6.2"),
         ("adequacy", "6.3"),
+        # 6.4 — contractual safeguards (SCC / BCR)
+        ("standard contractual clauses", "6.4"),
+        ("binding corporate rules", "6.4"),
+        ("contractual clauses", "6.4"),
+        # 6.5 — other lawful bases for transfer
+        ("vital interest", "6.5"),
+        ("public interest", "6.5"),
+        ("legitimate interest", "6.5"),
     ),
     # Pillar 7 — Domestic data protection
     7: (
@@ -68,9 +80,26 @@ _PILLAR_KEYWORDS: dict[int, tuple[tuple[str, str], ...]] = {
     ),
 }
 
+# Context guard for semantics-blind, high-frequency terms: a hit only counts if one of the
+# qualifier phrases appears within _CONTEXT_WINDOW chars of it. Stops a bare "transfer"
+# (e.g. "technology transfer") or "processing" from firing the wrong indicator. Terms not
+# listed here match unconditionally (their keyword is already specific enough).
+_CONTEXT_WINDOW = 140
+_CONTEXT_GUARDS: dict[str, tuple[str, ...]] = {
+    "transfer": (
+        "cross-border", "cross border", "overseas", "outside", "abroad", "country",
+        "territory", "beyond", "another country", "third country",
+    ),
+    "processing": ("personal data", "personal information", "data subject", "data protection"),
+    "personal data": (
+        "collect", "use", "disclos", "process", "store", "retain", "protect",
+        "consent", "transfer",
+    ),
+}
+
 # "Section 26", "Section 26A", "Article 12", "Art. 5", "s. 14" near a match.
 _SECTION_RE = re.compile(
-    r"\b(?:Section|Article|Art\.?|s\.)\s*\d+[A-Za-z]?\b",
+    r"\b(?:Section|Article|Art\.?|s\.)\s*\d+[A-Za-z]?\b|\b\d+[A-Za-z]?\.\s*[—-]",
     re.IGNORECASE,
 )
 
@@ -106,10 +135,14 @@ class MockProvisionExtractor:
         pillar_enum = Pillar(pillar)
 
         findings: list[Finding] = []
+        seen_indicators: set[str] = set()  # dedup: at most one Finding per indicator per doc
         for keyword, indicator_db in keywords:
+            if indicator_db in seen_indicators:
+                continue
             match = self._first_match(text, keyword, indicator_db)
             if match is None:
                 continue
+            seen_indicators.add(indicator_db)
             findings.append(
                 self._build_finding(doc, title, pillar_enum, match)
             )
@@ -120,9 +153,18 @@ class MockProvisionExtractor:
     # ------------------------------------------------------------------
 
     def _first_match(self, text: str, keyword: str, indicator_db: str) -> _Match | None:
-        """First word-boundary occurrence of ``keyword`` (case-insensitive)."""
+        """First word-boundary occurrence of ``keyword`` that satisfies any context guard.
+
+        For guarded high-frequency terms, scan occurrences and accept the first one with a
+        qualifier phrase nearby; unguarded keywords accept the first occurrence.
+        """
         pattern = re.compile(r"\b" + re.escape(keyword) + r"\b", re.IGNORECASE)
-        hit = pattern.search(text)
+        guards = _CONTEXT_GUARDS.get(keyword)
+        hit = None
+        for candidate in pattern.finditer(text):
+            if guards is None or self._has_context(text, candidate.start(), candidate.end(), guards):
+                hit = candidate
+                break
         if hit is None:
             return None
         return _Match(
@@ -131,6 +173,12 @@ class MockProvisionExtractor:
             start=hit.start(),
             end=hit.end(),
         )
+
+    @staticmethod
+    def _has_context(text: str, start: int, end: int, qualifiers: tuple[str, ...]) -> bool:
+        """True if any qualifier phrase appears within ``_CONTEXT_WINDOW`` chars of a hit."""
+        window = text[max(0, start - _CONTEXT_WINDOW) : end + _CONTEXT_WINDOW].lower()
+        return any(qualifier in window for qualifier in qualifiers)
 
     def _build_finding(
         self,
@@ -144,6 +192,10 @@ class MockProvisionExtractor:
         article_section = self._nearest_section(doc.text or "", match)
         rationale = self._rationale(match.keyword, indicator)
         notes = "Extracted from PDF text." if doc.is_pdf else ""
+        location_ref = doc.url or None
+        if doc.sections:
+            section = section_for_offset(doc.sections, match.start)
+            location_ref = format_location_ref(section, base_url=doc.url) or location_ref
         return Finding(
             title=title,
             last_update=None,
@@ -160,7 +212,7 @@ class MockProvisionExtractor:
             discovery_tag=DiscoveryTag.KNOWN,  # run.py re-stamps NEW/KNOWN
             verbatim_snippet=snippet,
             mapping_rationale=rationale,
-            location_ref=doc.url or None,
+            location_ref=location_ref,
             notes=notes,
         )
 
@@ -195,7 +247,11 @@ class MockProvisionExtractor:
                 best_distance = distance
                 best = found.group(0)
         # Normalise internal whitespace ("Section   26" -> "Section 26").
-        return re.sub(r"\s+", " ", best).strip()
+        best = re.sub(r"\s+", " ", best).strip()
+        standalone = re.match(r"^(\d+[A-Za-z]?)\.\s*[—-]$", best)
+        if standalone:
+            return f"Section {standalone.group(1)}"
+        return best
 
     def _rationale(self, keyword: str, indicator: str) -> str:
         """Templated, deterministic, <=300 chars."""
@@ -206,7 +262,10 @@ class MockProvisionExtractor:
         return rationale[:_MAX_RATIONALE_CHARS]
 
     def _derive_title(self, doc: CrawledDocument) -> str:
-        """First substantive line of the text, else a slug from the URL path."""
+        """Prefer the detected Act title, else first substantive line, else URL slug."""
+        detected = (getattr(doc, "title", "") or "").strip()
+        if detected:
+            return detected[:_MAX_SNIPPET_CHARS]
         for line in (doc.text or "").splitlines():
             stripped = line.strip()
             if len(stripped) >= 3:

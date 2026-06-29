@@ -1,0 +1,95 @@
+@startuml zetarix-scraper
+title Zetarix — Department 01: Scraper / Botting (Component View)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultTextAlignment center
+
+' ---- Ports (owned by Dept 03, shown as the seam) ----
+package "core/ports (Dept 03 seam)" as Ports {
+  interface HtmlFetcherPort
+  interface DocumentExtractorPort
+  interface LLMProvider
+}
+
+package "core/domain (handoff types)" as Domain {
+  [ParsedDocument]
+  [HtmlSection]
+}
+
+' ---- L4 Transport ----
+package "L4 Transport — adapters/botting/l4_transport" as L4 {
+  [TransportFactory] as TF
+  [HttpClient] as HTTP
+  [PlaywrightClient] as PW
+  [scroll_settle] as SS
+  [PdfParser] as PDF
+  [FetchResult] as FR
+  package "Proxy subsystem" as Proxy {
+    interface ProxyProvider
+    [proxy_providers\n(None/Free/Configured/\nBrokered/Simulated)] as PP
+    [ProxyPoolBroker] as Broker
+  }
+}
+
+' ---- L6 Presentation ----
+package "L6 Presentation — l6_presentation" as L6 {
+  [DomCleaner] as DC
+  [html_sections helpers] as HS
+}
+
+' ---- L7 Application ----
+package "L7 Application — l7_application" as L7 {
+  [PipelineAdapter] as PA
+}
+
+' ---- Scaffolds ----
+package "Scaffolds — adapters/botting/scaffolds" as SC {
+  [ScaffoldRegistry] as REG
+  interface BaseScaffold
+  [sso.agc.gov.sg] as S1
+  [pdpc.gov.sg] as S2
+  [pdp.gov.my] as S3
+  [homeaffairs.gov.au] as S4
+  [legislation.gov.au] as S5
+}
+
+' ---- Port realizations ----
+HTTP ..|> HtmlFetcherPort
+PW   ..|> HtmlFetcherPort
+TF   ..|> HtmlFetcherPort
+PA   ..|> DocumentExtractorPort
+PP   ..|> ProxyProvider
+
+' ---- Wiring ----
+TF --> HTTP : static first
+TF --> PW : JS / SPA fallback
+PW --> SS : settle lazy load
+HTTP --> FR
+PW --> FR
+HTTP --> Proxy : rotate IPs
+Broker --> PP
+
+PA --> REG : lookup scaffold
+PA --> TF : fetch bytes
+PA --> PDF : if FetchResult.is_pdf
+PA --> DC : clean HTML
+DC --> HS
+DC --> HtmlSection : produces
+PA ..> LLMProvider : optional structuring
+PA --> ParsedDocument : produces (handoff to Dept 02)
+
+REG --> BaseScaffold
+S1 ..|> BaseScaffold
+S2 ..|> BaseScaffold
+S3 ..|> BaseScaffold
+S4 ..|> BaseScaffold
+S5 ..|> BaseScaffold
+
+note bottom of L7
+  Output: ParsedDocument(sections, tags, links)
+  Scraper stops here — never imports
+  extraction / scoring / clustering.
+end note
+
+@enduml

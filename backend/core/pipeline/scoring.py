@@ -115,6 +115,39 @@ def _economy_of(finding: Finding) -> str:
     return getattr(finding, "country", "") or ""
 
 
+def _pillar_from_indicator(code: str) -> int:
+    """'P6-I1' / '6.1' -> 6. 0 when it cannot be determined (won't match any gold pillar)."""
+    canonical = _canonical_indicator(code)
+    match = re.match(r"P(\d+)", canonical)
+    return int(match.group(1)) if match else 0
+
+
+def match_items_from_json_objects(objects: list[dict]) -> list[MatchItem]:
+    """Convert a live ``output.json`` law-grouped envelope into scorable ``MatchItem`` rows.
+
+    Bridges the pipeline's emitted predictions to the scorer so live extraction accuracy can
+    be measured against gold (Issue #7). Envelope shape: a list of laws, each with
+    ``economy`` / ``law_name`` and a ``provisions`` list of ``{indicator_id, source_url, …}``.
+    """
+    items: list[MatchItem] = []
+    for law in objects or []:
+        economy = (law.get("economy") or "").strip()
+        name = (law.get("law_name") or "").strip()
+        for provision in law.get("provisions", []) or []:
+            indicator = provision.get("indicator_id") or ""
+            url = provision.get("source_url") or ""
+            items.append(
+                MatchItem(
+                    country=economy,
+                    pillar_id=_pillar_from_indicator(indicator),
+                    indicator_id=_canonical_indicator(indicator),
+                    act_name=name,
+                    urls=(url,) if url else (),
+                )
+            )
+    return items
+
+
 def gold_to_match_item(record: GoldRecord) -> MatchItem:
     return MatchItem(
         country=record.country,
@@ -126,10 +159,15 @@ def gold_to_match_item(record: GoldRecord) -> MatchItem:
 
 
 def is_match(pred: MatchItem, gold: MatchItem, act_threshold: float = DEFAULT_ACT_THRESHOLD) -> bool:
-    """A predicted row matches a gold row when, within the same pillar, either the act
-    names are close enough or they share a reference URL. Country must agree when both
-    sides declare one (predictions may omit it early in the pipeline)."""
+    """A predicted row matches gold only when the indicator label is also correct.
+
+    Within the same country/pillar/indicator, either close act names or a shared URL can
+    establish evidence identity. Requiring the indicator prevents a model from scoring
+    correct for finding the right law but assigning the wrong RDTII label.
+    """
     if pred.pillar_id != gold.pillar_id:
+        return False
+    if _canonical_indicator(pred.indicator_id) != _canonical_indicator(gold.indicator_id):
         return False
     if pred.country and gold.country and pred.country.lower() != gold.country.lower():
         return False

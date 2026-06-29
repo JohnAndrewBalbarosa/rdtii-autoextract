@@ -71,12 +71,12 @@ class Finding:
     review_status: ReviewStatus = ReviewStatus.PENDING
     # --- Round-1 submission fields (spec p.14) ---
     economy: str = ""  # country analysed
-    law_number: str | None = None  # official act/law number ("Law Number/Ref")
+    law_number: str | None = None  # official act/law number ("Law Number / Ref")
     article_section: str = ""  # exact article + paragraph
     discovery_tag: DiscoveryTag = DiscoveryTag.KNOWN
     verbatim_snippet: str = ""  # exact quoted text — no paraphrasing (audit trail)
     mapping_rationale: str = ""  # why it maps here (intended ≤300 chars)
-    location_ref: str | None = None  # PDF page no. | HTML URL anchor/path
+    location_ref: str | None = None  # PDF page no. | HTML Location Reference
     notes: str = ""  # OCR issues, partial doc, bilingual
 
     def with_review(self, status: ReviewStatus) -> "Finding":

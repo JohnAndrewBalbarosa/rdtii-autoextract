@@ -18,8 +18,11 @@ class HomeAffairsScaffold(BaseScaffold):
             "pdf_links": 'a[href$=".pdf"]',
             "article_links": 'main a, #content a',
             "title": "h1",
-            "sections": "h2, h3, p"
+            "sections": "h2, h3, p",
         }
+
+    def get_boilerplate_selectors(self) -> list[str]:
+        return [".breadcrumb", ".related-links", ".sidebar", ".au-footer", ".cookie-banner"]
 
     def get_keywords(self) -> list[str]:
         return [

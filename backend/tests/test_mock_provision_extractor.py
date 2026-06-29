@@ -11,7 +11,7 @@ from adapters.extraction.mock_provision_extractor import (
     MOCK_CONFIDENCE,
     MockProvisionExtractor,
 )
-from core.domain.document import CrawledDocument
+from core.domain.document import CrawledDocument, HtmlSection
 
 # A small, realistic legal text. "transfer" -> P6-I1; "Section 26" sits next to it.
 _SAMPLE_P6_TEXT = (
@@ -86,6 +86,18 @@ def test_snippet_is_bounded():
     assert len(transfer.verbatim_snippet) <= 300
 
 
+def test_standalone_numbered_section_maps_to_article_section():
+    text = (
+        "Transfer of personal data outside Singapore 26. —(1) An organisation must "
+        "not transfer personal data overseas."
+    )
+
+    findings = MockProvisionExtractor().extract(_doc(text), pillar=6)
+    transfer = next(f for f in findings if f.indicator == "P6-I1")
+
+    assert transfer.article_section == "Section 26"
+
+
 def test_no_keyword_yields_no_findings():
     findings = MockProvisionExtractor().extract(
         _doc("This document talks about agriculture and weather only."), pillar=6
@@ -105,3 +117,42 @@ def test_url_slug_title_when_no_text_heading():
     # First substantive line is the clause itself; title falls back to it (>=3 chars).
     assert findings[0].title  # non-empty
     assert findings[0].notes == "Extracted from PDF text."
+
+
+def test_html_section_anchor_sets_location_ref():
+    section = HtmlSection(
+        heading="Section 26",
+        text="An organisation shall not transfer personal data overseas.",
+        anchor="s26",
+        path=("Part IV", "Section 26"),
+    )
+    doc = CrawledDocument(
+        url="https://example.gov/law",
+        economy="Singapore",
+        text="Section 26\nAn organisation shall not transfer personal data overseas.",
+        sections=(section,),
+    )
+
+    findings = MockProvisionExtractor().extract(doc, pillar=6)
+    transfer = next(f for f in findings if f.indicator == "P6-I1")
+
+    assert transfer.location_ref == "https://example.gov/law#s26"
+
+
+def test_html_section_path_sets_location_ref_when_anchor_missing():
+    section = HtmlSection(
+        heading="Section 26",
+        text="An organisation shall not transfer personal data overseas.",
+        path=("Part IV", "Section 26"),
+    )
+    doc = CrawledDocument(
+        url="https://example.gov/law",
+        economy="Singapore",
+        text="Section 26\nAn organisation shall not transfer personal data overseas.",
+        sections=(section,),
+    )
+
+    findings = MockProvisionExtractor().extract(doc, pillar=6)
+    transfer = next(f for f in findings if f.indicator == "P6-I1")
+
+    assert transfer.location_ref == "Part IV > Section 26"

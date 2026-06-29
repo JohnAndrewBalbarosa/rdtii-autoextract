@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import gzip
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -169,6 +170,24 @@ class TestHttpClientBinaryPDF:
         assert result.body == MINIMAL_PDF_BYTES
         assert result.is_pdf is True
         assert result.status == 200
+
+    def test_fetch_raw_decodes_gzip_html_response(self):
+        client = HttpClient()
+
+        fake_response = MagicMock()
+        fake_response.__enter__ = MagicMock(return_value=fake_response)
+        fake_response.__exit__ = MagicMock(return_value=False)
+        fake_response.read.return_value = gzip.compress(HTML_BYTES)
+        fake_response.headers.get.side_effect = lambda key, default=None: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Encoding": "gzip",
+        }.get(key, default)
+        fake_response.status = 200
+
+        with patch("adapters.botting.l4_transport.http_client.urlopen", return_value=fake_response):
+            result = client.fetch_raw("https://example.com/page")
+
+        assert result.text == HTML_BYTES.decode("utf-8")
 
 
 # ---------------------------------------------------------------------------

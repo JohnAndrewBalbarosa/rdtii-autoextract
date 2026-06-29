@@ -8,38 +8,9 @@ import hashlib
 import random
 from typing import Tuple, Dict, Any
 
-# A database of simulated country/ISP data to make the mock residential proxy experience highly realistic.
+# Mock egress locations are intentionally limited to the countries in the supplied
+# Round-1 CSV inventories under docs/: Australia, Malaysia, and Singapore.
 COUNTRIES_DB = [
-    {
-        "country": "United States",
-        "code": "US",
-        "cities": ["New York", "Los Angeles", "Chicago", "Miami", "San Francisco", "Austin", "Seattle"],
-        "isps": ["Comcast Cable", "AT&T Internet", "Spectrum", "Verizon Fios", "Cox Communications"]
-    },
-    {
-        "country": "United Kingdom",
-        "code": "GB",
-        "cities": ["London", "Manchester", "Birmingham", "Leeds", "Glasgow", "Bristol", "Edinburgh"],
-        "isps": ["BT Broadband", "Virgin Media", "Sky Broadband", "TalkTalk", "EE"]
-    },
-    {
-        "country": "Philippines",
-        "code": "PH",
-        "cities": ["Manila", "Quezon City", "Davao", "Cebu", "Makati", "Pasig", "Taguig"],
-        "isps": ["PLDT Home Fibr", "Globe Telecom", "Converge ICT Solutions", "Dito Telecommunity"]
-    },
-    {
-        "country": "Germany",
-        "code": "DE",
-        "cities": ["Berlin", "Munich", "Frankfurt", "Hamburg", "Cologne", "Dusseldorf", "Stuttgart"],
-        "isps": ["Deutsche Telekom", "Vodafone Deutschland", "1&1 Telecom", "O2 DSL"]
-    },
-    {
-        "country": "Canada",
-        "code": "CA",
-        "cities": ["Toronto", "Vancouver", "Montreal", "Calgary", "Ottawa", "Edmonton", "Halifax"],
-        "isps": ["Rogers Communications", "Bell Canada", "Telus", "Shaw Communications", "Videotron"]
-    },
     {
         "country": "Australia",
         "code": "AU",
@@ -47,10 +18,16 @@ COUNTRIES_DB = [
         "isps": ["Telstra", "Optus", "TPG", "iiNet", "Aussie Broadband"]
     },
     {
-        "country": "Japan",
-        "code": "JP",
-        "cities": ["Tokyo", "Osaka", "Kyoto", "Yokohama", "Nagoya", "Fukuoka"],
-        "isps": ["NTT Docomo", "SoftBank BB", "KDDI", "So-net"]
+        "country": "Malaysia",
+        "code": "MY",
+        "cities": ["Kuala Lumpur", "George Town", "Johor Bahru", "Ipoh", "Shah Alam", "Petaling Jaya"],
+        "isps": ["Unifi", "Maxis", "CelcomDigi", "TIME Internet"]
+    },
+    {
+        "country": "Singapore",
+        "code": "SG",
+        "cities": ["Singapore", "Jurong East", "Tampines", "Woodlands", "Punggol", "Bedok"],
+        "isps": ["Singtel", "StarHub", "M1", "MyRepublic", "ViewQwest"]
     }
 ]
 

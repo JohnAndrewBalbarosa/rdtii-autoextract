@@ -1,0 +1,75 @@
+@startuml zetarix-platform-contracts
+title Zetarix — Department 03: Platform & Contracts (Component View)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultTextAlignment center
+
+package "core/ports — THE SEAM" as PORTS {
+  interface HtmlFetcherPort
+  interface DocumentExtractorPort
+  interface ProvisionExtractor
+  interface LLMProvider
+  interface SimilarityScorer
+  interface CommunityDetector
+  interface "SectionExtractor / GuidedSectionTagger\nTaggingReconciler / DocumentGuideProvider" as TAGPORTS
+  interface "DocumentSource / OCREngine / Chunker\nVectorStore / IndicatorClassifier / FindingRepository" as EXT
+  interface "AccessObserver / AccessPolicyEvaluator\nRetrievalAuditor" as ACCESS
+}
+
+package "Entry points" as ENTRY {
+  [run.py\nCLI orchestrator] as RUN
+  [run_validation.py\nhonest scorecard] as VAL
+  [app/main.py\nFastAPI reference] as API
+  [ScraperOrchestrator] as ORCH
+}
+
+package "Contracts & ground truth" as CONTRACT {
+  [output_emitter.py\n13-col CSV + JSON envelope] as OUT
+  [golden_dataset.py\nGoldRecord / ReferenceItem] as GOLD
+}
+
+' external departments (as actors of the seam)
+package "Dept 01 (scraper)" as D1 {
+  [TransportFactory] as TF
+  [PipelineAdapter] as PA
+}
+package "Dept 02 (pipeline/eval)" as D2 {
+  [FallbackProvisionExtractor] as FB
+  [scoring.py] as SC
+  [LLMRouter] as LR
+}
+package "Dept 04 (frontend)" as D4 {
+  [FindingsRepository (TS)\nmirrors contract over HTTP] as FR
+}
+
+' realizations from other depts into the seam
+TF ..|> HtmlFetcherPort
+PA ..|> DocumentExtractorPort
+FB ..|> ProvisionExtractor
+LR ..|> LLMProvider
+
+' run.py wiring
+RUN --> TF : fetch (live)
+RUN --> FB : extract
+RUN --> GOLD : gold findings / seeds
+RUN --> OUT : write CSV/JSON/clusters
+VAL --> GOLD
+VAL --> SC : self-check F1=1.0
+SC --> GOLD : ground truth
+
+' api wiring
+API --> ORCH
+ORCH --> DocumentExtractorPort
+ORCH --> CONTRACT
+
+' frontend future seam
+FR ..> API : (future REST, same Finding shape)
+
+note bottom of PORTS
+  No implementations, no external libs.
+  A swap = one factory/config entry.
+  Adding a method = cross-dept breaking change.
+end note
+
+@enduml

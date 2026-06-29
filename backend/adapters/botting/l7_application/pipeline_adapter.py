@@ -29,17 +29,20 @@ class PipelineAdapter(DocumentExtractorPort):
     def scrape_url(self, url: str) -> ParsedDocument:
         # Check for site-specific scaffold
         scaffold = self._scaffold_registry.get_scaffold_for_url(url) if self._scaffold_registry else None
-        custom_selectors = scaffold.get_custom_selectors() if scaffold else {}
+        custom_selectors = dict(scaffold.get_custom_selectors()) if scaffold else {}
+        if scaffold:
+            custom_selectors["boilerplate"] = scaffold.get_boilerplate_selectors()
         keywords = scaffold.get_keywords() if scaffold else []
+        fetch_url = scaffold.get_fetch_url(url) if scaffold else url
 
         # Step 1: L4 Transport (Fetch) — use fetch_raw if available for binary-safe routing
         if hasattr(self._fetcher, "fetch_raw"):
-            result: FetchResult = self._fetcher.fetch_raw(url)
+            result: FetchResult = self._fetcher.fetch_raw(fetch_url)
             is_pdf = result.is_pdf
         else:
             # Fallback for fetchers that only implement HtmlFetcherPort.fetch()
-            raw_html = self._fetcher.fetch(url)
-            is_pdf = url.lower().endswith(".pdf")
+            raw_html = self._fetcher.fetch(fetch_url)
+            is_pdf = fetch_url.lower().endswith(".pdf")
             result = None  # type: ignore[assignment]
 
         # Step 2: Route by content type — PDF → PdfParser, HTML → DomCleaner

@@ -10,6 +10,7 @@ See docs/GRAPH_PIPELINE.md.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,18 @@ class CrawledDocument:
     text: str  # plain document text (HTML-cleaned or PDF-extracted)
     is_pdf: bool = False
     language: str = "en"  # ISO 639-1
+    sections: tuple["HtmlSection", ...] = ()
+    title: str = ""  # detected Act title (e.g. "Privacy Act 1988"); "" -> extractor derives one
+
+
+@dataclass(frozen=True)
+class HtmlSection:
+    """One legal-content section extracted from an HTML source."""
+
+    heading: str
+    text: str
+    anchor: str | None = None
+    path: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
