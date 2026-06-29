@@ -23,18 +23,39 @@ from core.domain.entities import Finding
 CSV_COLUMNS: tuple[str, ...] = (
     "Economy",
     "Law Name",
-    "Law Number/Ref",
+    "Law Number / Ref",
     "Last Amended",
     "Indicator ID",
     "Article / Section",
     "Discovery Tag",
-    "Location Ref.",
+    "Location Reference",
     "Verbatim Snippet",
     "Mapping Rationale",
     "Source URL",
     "Confidence",
     "Notes",
 )
+
+
+def _clean_field(val: str | None) -> str:
+    if not val:
+        return ""
+    # Collapse any form of newlines or carriage returns into a single space
+    cleaned = val.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+    import re
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _format_url(val: str | None) -> str:
+    if not val:
+        return ""
+    cleaned = _clean_field(val)
+    if cleaned.startswith(("http://", "https://", "www.")):
+        url = cleaned
+        if cleaned.startswith("www."):
+            url = "https://" + cleaned
+        return f'=HYPERLINK("{url}")'
+    return cleaned
 
 
 def _last_amended(finding: Finding) -> str:
@@ -48,19 +69,19 @@ def _row_dict(finding: Finding) -> "OrderedDict[str, str]":
     """One CSV row as an ordered dict keyed by the p.14 column names."""
     return OrderedDict(
         (
-            ("Economy", finding.economy),
-            ("Law Name", finding.title),
-            ("Law Number/Ref", finding.law_number or ""),
+            ("Economy", _clean_field(finding.economy)),
+            ("Law Name", _clean_field(finding.title)),
+            ("Law Number / Ref", _clean_field(finding.law_number)),
             ("Last Amended", _last_amended(finding)),
-            ("Indicator ID", finding.indicator),
-            ("Article / Section", finding.article_section),
+            ("Indicator ID", _clean_field(finding.indicator)),
+            ("Article / Section", _clean_field(finding.article_section)),
             ("Discovery Tag", finding.discovery_tag.value),
-            ("Location Ref.", finding.location_ref or ""),
-            ("Verbatim Snippet", finding.verbatim_snippet),
-            ("Mapping Rationale", finding.mapping_rationale),
-            ("Source URL", finding.url),
+            ("Location Reference", _format_url(finding.location_ref)),
+            ("Verbatim Snippet", _clean_field(finding.verbatim_snippet)),
+            ("Mapping Rationale", _clean_field(finding.mapping_rationale)),
+            ("Source URL", _format_url(finding.url)),
             ("Confidence", f"{finding.confidence:.2f}"),
-            ("Notes", finding.notes),
+            ("Notes", _clean_field(finding.notes)),
         )
     )
 

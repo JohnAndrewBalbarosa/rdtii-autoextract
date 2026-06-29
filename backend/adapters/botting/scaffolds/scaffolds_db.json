@@ -17,25 +17,6 @@
       "legislative reforms"
     ]
   },
-  "sso.agc.gov.sg": {
-    "content_area": "main, #content, article, .legislation-body",
-    "pdf_links": "a[href$=\".pdf\"]",
-    "article_links": "main a, #content a, article a",
-    "title": "h1, .act-title",
-    "sections": "h2, h3, p, .section",
-    "keywords": [
-      "act",
-      "statute",
-      "legislation",
-      "law",
-      "legal",
-      "singapore",
-      "ordinance",
-      "regulation",
-      "amendment",
-      "principal act"
-    ]
-  },
   "pdpc.gov.sg": {
     "content_area": "main, #content, article, .page-content",
     "pdf_links": "a[href$=\".pdf\"]",
@@ -71,6 +52,24 @@
       "open standards",
       "software licensing",
       "intellectual property"
+    ]
+  },
+  "sso.agc.gov.sg": {
+    "content_area": "main",
+    "sections": "h2, h3, p",
+    "pdf_links": "a[href$='.pdf']",
+    "title": "h1",
+    "keywords": [
+      "data protection",
+      "personal data",
+      "digital trade",
+      "privacy laws",
+      "Singapore",
+      "PDPA",
+      "data security",
+      "information technology",
+      "regulation",
+      "data governance"
     ]
   }
 }

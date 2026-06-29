@@ -142,7 +142,7 @@ class MockProvisionExtractor:
         indicator = to_canonical(match.indicator_db)
         snippet = self._verbatim_clause(doc.text or "", match)
         article_section = self._nearest_section(doc.text or "", match)
-        rationale = self._rationale(match.keyword, indicator)
+        rationale = self._rationale(match.keyword, indicator, article_section)
         notes = "Extracted from PDF text." if doc.is_pdf else ""
         return Finding(
             title=title,
@@ -197,11 +197,21 @@ class MockProvisionExtractor:
         # Normalise internal whitespace ("Section   26" -> "Section 26").
         return re.sub(r"\s+", " ", best).strip()
 
-    def _rationale(self, keyword: str, indicator: str) -> str:
-        """Templated, deterministic, <=300 chars."""
+    def _rationale(self, keyword: str, indicator: str, article_section: str) -> str:
+        """Templated, deterministic, <=300 chars matching ESCAP requirements."""
+        article = article_section if article_section else "provision"
+        verb = "establishes"
+        if keyword in ("consent", "adequacy", "transfer", "cross-border", "processing"):
+            verb = "requires"
+        elif keyword in ("breach", "localisation", "localization"):
+            verb = "prohibits"
+            
+        reason = f"the text explicitly regulates or references '{keyword}' in the context of trade/privacy laws"
+        what = f"provisions concerning '{keyword}'"
+        
         rationale = (
-            f"Matched keyword '{keyword}' in document text; mapped to indicator "
-            f"{indicator} by the deterministic mock keyword table."
+            f"This {article} {verb} {what}. "
+            f"Maps to {indicator} because {reason}."
         )
         return rationale[:_MAX_RATIONALE_CHARS]
 

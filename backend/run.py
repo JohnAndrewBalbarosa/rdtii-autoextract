@@ -56,6 +56,23 @@ _COUNTRY_ALIASES: dict[str, str] = {
     "my": "Malaysia",
     "mys": "Malaysia",
     "malaysia": "Malaysia",
+    "th": "Thailand",
+    "tha": "Thailand",
+    "thailand": "Thailand",
+    "cn": "China",
+    "china": "China",
+    "id": "Indonesia",
+    "indonesia": "Indonesia",
+    "in": "India",
+    "india": "India",
+    "la": "Lao PDR",
+    "lao": "Lao PDR",
+    "lao pdr": "Lao PDR",
+    "mn": "Mongolia",
+    "mongolia": "Mongolia",
+    "ru": "Russian Federation",
+    "russia": "Russian Federation",
+    "russian federation": "Russian Federation",
 }
 
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
@@ -69,6 +86,28 @@ def resolve_country(raw: str) -> str | None:
     if not raw:
         return None
     return _COUNTRY_ALIASES.get(raw.strip().lower())
+
+
+def resolve_countries(raw: str) -> list[str] | None:
+    """Map a single, comma-separated, or 'ALL' country input to canonical country name(s)."""
+    if not raw:
+        return None
+    raw_lower = raw.strip().lower()
+    all_canonical = [
+        "Singapore", "Australia", "Malaysia", "Thailand", 
+        "China", "Indonesia", "India", "Lao PDR", "Mongolia", "Russian Federation"
+    ]
+    if raw_lower == "all":
+        return all_canonical
+        
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    resolved = []
+    for p in parts:
+        canon = resolve_country(p)
+        if canon is None:
+            return None
+        resolved.append(canon)
+    return resolved
 
 
 def _last_amended_year(timeframe: str) -> date | None:
@@ -283,11 +322,11 @@ def main(argv: list[str] | None = None, *, fetcher=None, extractor=None) -> int:
     """
     args = _parse_args(list(argv) if argv is not None else sys.argv[1:])
 
-    country = resolve_country(args.country)
-    if country is None:
+    countries = resolve_countries(args.country)
+    if countries is None:
         print(
             f"[run.py] Unrecognised country {args.country!r}. "
-            "Accepted: SG/Singapore, AU/Australia, MY/Malaysia.",
+            "Accepted: SG/Singapore, AU/Australia, MY/Malaysia, TH/Thailand, etc., or comma-separated list, or 'ALL'.",
             file=sys.stderr,
         )
         return 2
@@ -296,51 +335,50 @@ def main(argv: list[str] | None = None, *, fetcher=None, extractor=None) -> int:
     os.makedirs(out_dir, exist_ok=True)
     logger, log_path = _configure_logger(out_dir)
     started = time.perf_counter()
-    logger.info("start country=%s pillar=%s source=%s", country, args.pillar, args.source)
+    logger.info("start countries=%s pillar=%s source=%s", countries, args.pillar, args.source)
 
+    all_findings: list[Finding] = []
     source_used = args.source
-    findings = None
-    if args.source == "live":
-        live_fetcher = fetcher if fetcher is not None else _default_fetcher()
-        live_extractor = extractor if extractor is not None else _default_extractor()
-        findings = _build_live_findings(
-            country, args.pillar, logger, args.docs_dir, live_fetcher, live_extractor
-        )
-        if not findings:
-            # No live findings (e.g. every fetch failed offline). Keep the CSV/JSON
-            # contract by falling back to the audited gold baseline.
-            logger.warning("live crawl produced 0 findings; falling back to gold baseline")
-            print(
-                "[run.py] Live crawl yielded no findings (network unreachable or empty "
-                "seed) - falling back to offline gold source so output files are still "
-                "produced.",
-                file=sys.stderr,
-            )
-            findings = None
-            source_used = "gold (fallback)"
-    if findings is None:
-        findings = build_gold_findings(country, args.pillar, args.docs_dir)
 
-    findings = tag_discovery(findings, args.docs_dir)
+    for country in countries:
+        logger.info("processing country=%s", country)
+        findings = None
+        if args.source == "live":
+            live_fetcher = fetcher if fetcher is not None else _default_fetcher()
+            live_extractor = extractor if extractor is not None else _default_extractor()
+            findings = _build_live_findings(
+                country, args.pillar, logger, args.docs_dir, live_fetcher, live_extractor
+            )
+            if not findings:
+                # No live findings (e.g. every fetch failed offline). Keep the CSV/JSON
+                # contract by falling back to the audited gold baseline.
+                logger.warning("live crawl for %s produced 0 findings; falling back to gold baseline", country)
+                findings = None
+        if findings is None:
+            findings = build_gold_findings(country, args.pillar, args.docs_dir)
+
+        findings = tag_discovery(findings, args.docs_dir)
+        all_findings.extend(findings)
+
     if args.limit is not None:
-        findings = findings[: args.limit]
+        all_findings = all_findings[: args.limit]
 
     processing_time = round(time.perf_counter() - started, 4)
     csv_path = os.path.join(out_dir, "output.csv")
     json_path = os.path.join(out_dir, "output.json")
-    write_csv(findings, csv_path)
+    write_csv(all_findings, csv_path)
     write_json(
-        findings,
+        all_findings,
         json_path,
         model_version=MODEL_VERSION,
         processing_time=processing_time,
     )
 
-    new_count = sum(1 for f in findings if f.discovery_tag is DiscoveryTag.NEW)
-    known_count = len(findings) - new_count
+    new_count = sum(1 for f in all_findings if f.discovery_tag is DiscoveryTag.NEW)
+    known_count = len(all_findings) - new_count
     logger.info(
         "done rows=%d new=%d known=%d csv=%s json=%s",
-        len(findings),
+        len(all_findings),
         new_count,
         known_count,
         csv_path,
@@ -348,9 +386,10 @@ def main(argv: list[str] | None = None, *, fetcher=None, extractor=None) -> int:
     )
 
     # ASCII-only summary: some Windows consoles use cp1252 and choke on non-ASCII.
+    countries_str = ", ".join(countries) if len(countries) <= 3 else f"{len(countries)} countries"
     print(
-        f"[run.py] {country} P{args.pillar} via {source_used}: "
-        f"{len(findings)} rows ({new_count} NEW / {known_count} KNOWN) -> "
+        f"[run.py] {countries_str} P{args.pillar} via {source_used}: "
+        f"{len(all_findings)} rows ({new_count} NEW / {known_count} KNOWN) -> "
         f"{csv_path}, {json_path}, {log_path}"
     )
     return 0
