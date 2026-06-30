@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from adapters.botting.l6_presentation.dom_cleaner import DomCleaner  # noqa: E402
+from adapters.botting.l7_application.adaptive_crawler import AdaptiveDomainCrawler  # noqa: E402
 from adapters.llm.prompt_contracts import (  # noqa: E402
     build_layout_rule_prompt,
     build_link_discovery_prompt,
@@ -56,9 +57,11 @@ def benchmark(html_path: Path, output_path: Path, encoding_name: str) -> dict:
         {"selected_urls": [], "reason": "No navigation links in frozen fixture"},
         separators=(",", ":"),
     )
-    layout_prompt = build_layout_rule_prompt(
-        [{"url": url, "html_excerpt": html}]
-    )
+    # Mirror production exactly: the crawler learns layout from a structural skeleton
+    # (text stripped, capped at 30k chars) via AdaptiveDomainCrawler._sample — NOT the
+    # full raw HTML. Using the real sampler keeps this benchmark honest about the
+    # pipeline's actual one-time, amortized structure-analysis cost.
+    layout_prompt = build_layout_rule_prompt([AdaptiveDomainCrawler._sample(url, html)])
     layout_output = json.dumps(
         {
             "rules": [
@@ -98,7 +101,10 @@ def benchmark(html_path: Path, output_path: Path, encoding_name: str) -> dict:
             "input_html_sha256": _sha256(html),
             "caveat": (
                 "Host-agent/tool-call tokens are not exposed. Naive=0 means zero "
-                "application LLM API tokens. Provider-reported billing requires a live model."
+                "application LLM API tokens. Provider-reported billing requires a live model. "
+                "The layout_rules call is paid ONCE per layout family and reused across all "
+                "same-layout pages, so its per-page cost amortizes toward zero at scale; the "
+                "link_discovery call is paid once per crawl, not per page."
             ),
         },
         "naive_tool_path": {
@@ -110,10 +116,14 @@ def benchmark(html_path: Path, output_path: Path, encoding_name: str) -> dict:
             "content": naive_content,
         },
         "adaptive_system_path": {
-            "pipeline": "link discovery agent -> layout rule agent -> deterministic parser",
+            "pipeline": "link discovery (once/crawl) -> layout rule (once/layout, skeleton) -> deterministic parser (0 tokens/page)",
             "llm_calls": len(call_rows),
             "calls": call_rows,
             "application_llm_tokens": adaptive_total,
+            "amortization_note": (
+                "These are one-time setup tokens, not per-page. Over N same-layout pages "
+                "the per-page LLM cost trends to 0 (deterministic _apply_rules)."
+            ),
             "content_sha256": _sha256(adaptive_content),
             "content_chars": len(adaptive_content),
             "content": adaptive_content,

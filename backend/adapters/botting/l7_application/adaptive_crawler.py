@@ -33,6 +33,14 @@ _BOILERPLATE = ("cookie", "all rights reserved", "skip to content", "privacy pol
 _ROLES = {"ignore", "crawl_only", "extract_and_crawl", "extract_only"}
 
 
+class ExtractionError(Exception):
+    """One page could not be extracted by any method; carries a machine reason."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
 @dataclass(frozen=True)
 class CrawlConfig:
     max_depth: int = 2
@@ -142,61 +150,17 @@ class AdaptiveDomainCrawler:
                 payload, is_pdf = prefetched.pop(url) if url in prefetched else self._fetch(url)
                 visited.add(url)
                 result["visited_urls"].append(url)
-                if is_pdf:
-                    text = self._pdf_parser.extract_text(payload)
-                    result["extracted_pages"].append(self._page_result(url, "pdf", "pdf_parser", text, [], 0))
-                    continue
-
-                layout_id, fingerprint = self._layout_fingerprint(payload)
-                layout = self._layouts.get(layout_id)
-                if layout is None:
-                    layout = self._learn_layout(layout_id, fingerprint, url, payload)
-                    self._layouts[layout_id] = layout
-
-                parsed = self._apply_rules(payload, url, layout["rules"], seed_host)
-                method = "ai_rules"
-                failures = self._validation_failures(parsed)
-                while failures and layout["revision_count"] < self._config.max_revision_attempts:
-                    revised = self._llm.complete(
-                        build_layout_rule_prompt(
-                            [self._sample(url, payload)],
-                            previous_rules=layout["rules"],
-                            failures=failures,
-                        ),
-                        LAYOUT_RULE_SCHEMA,
-                        agent_profile="rule_revision_agent",
-                    )
-                    layout["rules"] = self._normalize_rules(revised)
-                    layout["revision_count"] += 1
-                    parsed = self._apply_rules(payload, url, layout["rules"], seed_host)
-                    failures = self._validation_failures(parsed)
-
-                if failures:
-                    text = self._cleaner.clean_html(payload)
-                    method = "readability"
-                    if len(text.strip()) < self._config.min_content_chars:
-                        scaffold = self._scaffolds.get_scaffold_for_url(url)
-                        if scaffold is None:
-                            result["failed_urls"].append({"url": url, "reason": "no_domain_specific_fallback"})
-                            continue
-                        text = self._cleaner.clean_html(payload, scaffold.get_custom_selectors())
-                        method = "domain_scaffold"
-                    if len(text.strip()) < self._config.min_content_chars:
-                        result["failed_urls"].append({"url": url, "reason": "all_extraction_methods_failed"})
-                        continue
-                    parsed = {"text": text, "links": []}
-
-                layout["sample_urls"].append(url) if url not in layout["sample_urls"] else None
-                layout["validation"] = {"passed": not failures, "failures": failures}
-                layout["final_extraction_method"] = method
-                result["extracted_pages"].append(
-                    self._page_result(url, layout_id, method, parsed["text"], parsed["links"], layout["revision_count"])
+                page = self.scrape_page(
+                    url, seed_host=seed_host, payload=payload, is_pdf=is_pdf
                 )
+                result["extracted_pages"].append(page)
                 if depth < self._config.max_depth:
-                    for link in parsed["links"]:
+                    for link in page["discovered_links"]:
                         if link not in queued and len(queued) < self._config.max_pages * 4:
                             queued.add(link)
                             queue.append((link, depth + 1))
+            except ExtractionError as exc:
+                result["failed_urls"].append({"url": url, "reason": exc.reason})
             except Exception as exc:
                 visited.add(url)
                 result["failed_urls"].append({"url": url, "reason": f"processing_error: {exc}"})
@@ -205,6 +169,76 @@ class AdaptiveDomainCrawler:
             result["skipped_urls"].append({"url": url, "reason": "max_pages_reached"})
         result["learned_layouts"] = list(self._layouts.values())
         return result
+
+    def scrape_page(
+        self,
+        url: str,
+        *,
+        seed_host: Optional[str] = None,
+        payload: Optional[str] = None,
+        is_pdf: Optional[bool] = None,
+        depth: int = 0,
+    ) -> dict:
+        """Extract ONE page, learning its layout once and reusing the cache thereafter.
+
+        This is the amortized seam: the LLM is consulted only to learn (or revise) a
+        layout the first time its fingerprint is seen. Every later same-layout page is
+        parsed by ``_apply_rules`` with zero model tokens. ``crawl`` drives this per URL;
+        ``AdaptiveCrawlerAdapter`` calls it directly for single-page extraction. Raises
+        ``ExtractionError`` when no method yields enough content.
+        """
+        seed_host = seed_host or self._host(url)
+        if payload is None:
+            payload, is_pdf = self._fetch(url)
+
+        if is_pdf:
+            text = self._pdf_parser.extract_text(payload)
+            return self._page_result(url, "pdf", "pdf_parser", text, [], 0)
+
+        layout_id, fingerprint = self._layout_fingerprint(payload)
+        layout = self._layouts.get(layout_id)
+        if layout is None:
+            layout = self._learn_layout(layout_id, fingerprint, url, payload)
+            self._layouts[layout_id] = layout
+
+        parsed = self._apply_rules(payload, url, layout["rules"], seed_host)
+        method = "ai_rules"
+        failures = self._validation_failures(parsed)
+        while failures and layout["revision_count"] < self._config.max_revision_attempts:
+            revised = self._llm.complete(
+                build_layout_rule_prompt(
+                    [self._sample(url, payload)],
+                    previous_rules=layout["rules"],
+                    failures=failures,
+                ),
+                LAYOUT_RULE_SCHEMA,
+                agent_profile="rule_revision_agent",
+            )
+            layout["rules"] = self._normalize_rules(revised)
+            layout["revision_count"] += 1
+            parsed = self._apply_rules(payload, url, layout["rules"], seed_host)
+            failures = self._validation_failures(parsed)
+
+        if failures:
+            text = self._cleaner.clean_html(payload)
+            method = "readability"
+            if len(text.strip()) < self._config.min_content_chars:
+                scaffold = self._scaffolds.get_scaffold_for_url(url)
+                if scaffold is None:
+                    raise ExtractionError("no_domain_specific_fallback")
+                text = self._cleaner.clean_html(payload, scaffold.get_custom_selectors())
+                method = "domain_scaffold"
+            if len(text.strip()) < self._config.min_content_chars:
+                raise ExtractionError("all_extraction_methods_failed")
+            parsed = {"text": text, "links": []}
+
+        if url not in layout["sample_urls"]:
+            layout["sample_urls"].append(url)
+        layout["validation"] = {"passed": not failures, "failures": failures}
+        layout["final_extraction_method"] = method
+        return self._page_result(
+            url, layout_id, method, parsed["text"], parsed["links"], layout["revision_count"]
+        )
 
     @staticmethod
     def write_json(result: dict, path) -> None:
@@ -311,9 +345,18 @@ class AdaptiveDomainCrawler:
 
     @staticmethod
     def _sample(url: str, html: str) -> dict:
+        """Structural skeleton for layout-rule learning — tags/ids/classes, no body text.
+
+        The layout-rule agent infers CSS selectors from structure only (the prompt itself
+        forbids text-dependent selectors), so stripping text nodes shrinks the prompt,
+        keeps page content out of the model context, and still exposes every structural
+        signal. Capped at 30k chars as a final bound.
+        """
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup.select("script, style, template, noscript"):
             tag.decompose()
+        for text_node in soup.find_all(string=True):
+            text_node.replace_with("")
         compact = str(soup)[:30000]
         return {"url": url, "html_excerpt": compact}
 
