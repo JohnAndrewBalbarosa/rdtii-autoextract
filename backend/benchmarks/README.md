@@ -102,3 +102,39 @@ once/layout), and link relevance (`:340`, crawl path only).
 
 Raw result data: `results/pipeline_token_test_au.json`, `results/pipeline_token_test_walkthrough.json`,
 `results/pipeline_token_test_summary.json`.
+
+## Deterministic quality metrics (no LLM) — `quality_metrics.py`
+
+Quantitative signals that need no live model. Reproduce:
+
+```bash
+python benchmarks/quality_metrics.py --output benchmarks/results/quality_metrics.json
+```
+
+| fixture | raw→cleaned | raw→skeleton | ms/page | pages/s | fp stability | contaminated |
+|---|--:|--:|--:|--:|--:|--:|
+| inspect_au.html (77,125 tok) | **−87.4%** | −88.1% | 386 | 2.6 | 100% | no |
+| walkthrough_au.html (103,171 tok) | **−90.6%** | −91.1% | 437 | 2.3 | 100% | no |
+| test_law.html (100 tok) | −50.0% | −70.0% | 2.8 | 360 | 100% | no |
+
+- **DOM compression:** the cleaner cuts ~87–91% of tokens before anything reaches a model;
+  the layout skeleton (`_sample`) cuts ~88–91%. This is why per-page LLM input stays small.
+- **Throughput:** deterministic per-page work (fingerprint + clean) is BeautifulSoup-bound at
+  ~2.3–2.6 pages/s on 230–315 KB pages (CPU only, no tokens) — a known optimization target
+  (switch parser to `lxml`).
+- **Fingerprint stability:** 100% — injecting volatile sibling-state classes (`active`,
+  `page-2`, `is-open`, …) never changes the fingerprint, so pages of one template share a
+  cache entry.
+- **Fingerprint collision:** 0 — all 3 distinct fixtures hash to 3 distinct fingerprints, so
+  different page types never share (wrong) cached rules.
+- **Boilerplate contamination:** 0 terms — no `cookie` / `all rights reserved` / etc. survive
+  into cleaned output.
+
+Raw data: `results/quality_metrics.json`.
+
+## Backlog (needs live LLM / real provider / network — tracked as GitHub issues)
+
+Metrics that can't be measured deterministically yet are filed in the **Zetarix Delegation**
+project: real-provider token/cost capture, link-judging precision/recall, live crawl
+latency + ban-rate, token scaling vs distinct layouts, and OCR/PDF CER. See open issues
+labeled `metrics`.

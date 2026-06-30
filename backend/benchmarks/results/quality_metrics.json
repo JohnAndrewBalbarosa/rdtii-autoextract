@@ -1,0 +1,85 @@
+{
+  "measurement": {
+    "kind": "deterministic_no_llm",
+    "encoding": "cl100k_base",
+    "timing_reps": 30
+  },
+  "per_fixture": {
+    "benchmarks/data/inspect_au.html": {
+      "compression": {
+        "raw_html_tokens": 77125,
+        "cleaned_text_tokens": 9743,
+        "skeleton_tokens": 9158,
+        "cleaned_reduction_pct": 87.4,
+        "skeleton_reduction_pct": 88.1
+      },
+      "throughput": {
+        "median_ms_per_page": 386.42,
+        "pages_per_sec": 2.6
+      },
+      "contamination": {
+        "boilerplate_terms_found": {},
+        "contaminated": false
+      },
+      "fingerprint_stability": {
+        "noise_variants": 7,
+        "kept_same_fingerprint": 7,
+        "stability_pct": 100.0
+      }
+    },
+    "benchmarks/data/walkthrough_au.html": {
+      "compression": {
+        "raw_html_tokens": 103171,
+        "cleaned_text_tokens": 9743,
+        "skeleton_tokens": 9184,
+        "cleaned_reduction_pct": 90.6,
+        "skeleton_reduction_pct": 91.1
+      },
+      "throughput": {
+        "median_ms_per_page": 437.08,
+        "pages_per_sec": 2.3
+      },
+      "contamination": {
+        "boilerplate_terms_found": {},
+        "contaminated": false
+      },
+      "fingerprint_stability": {
+        "noise_variants": 7,
+        "kept_same_fingerprint": 7,
+        "stability_pct": 100.0
+      }
+    },
+    "test_law.html": {
+      "compression": {
+        "raw_html_tokens": 100,
+        "cleaned_text_tokens": 50,
+        "skeleton_tokens": 30,
+        "cleaned_reduction_pct": 50.0,
+        "skeleton_reduction_pct": 70.0
+      },
+      "throughput": {
+        "median_ms_per_page": 2.78,
+        "pages_per_sec": 359.7
+      },
+      "contamination": {
+        "boilerplate_terms_found": {},
+        "contaminated": false
+      },
+      "fingerprint_stability": {
+        "noise_variants": 7,
+        "kept_same_fingerprint": 7,
+        "stability_pct": 100.0
+      }
+    }
+  },
+  "fingerprint_collision": {
+    "distinct_fixtures": 3,
+    "distinct_fingerprints": 3,
+    "collisions": 0,
+    "fingerprints": {
+      "benchmarks/data/inspect_au.html": "layout-a6783fbfb83c",
+      "benchmarks/data/walkthrough_au.html": "layout-acbced6e00b8",
+      "test_law.html": "layout-dd3bb32f6e75"
+    }
+  }
+}
