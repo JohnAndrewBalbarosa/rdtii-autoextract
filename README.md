@@ -53,3 +53,31 @@ contribution. See [backend/docs/GRAPH_PIPELINE.md](backend/docs/GRAPH_PIPELINE.m
 ## License
 
 [Apache License 2.0](backend/LICENSE).
+
+## Architecture (UML)
+
+```mermaid
+graph TD
+    UI["Frontend<br/>Next.js<br/>Reviewer UI"]
+    API["FastAPI Adapter<br/>HTTP Layer"]
+    Core["Core Domain<br/>Pipeline Use-Cases<br/>Entities & Ports"]
+    LLM["LLM Adapter"]
+    OCR["OCR Adapter"]
+    VEC["Vector/Embeddings<br/>Adapter"]
+    GRAPH["Graph Library<br/>Adapter"]
+    
+    UI -->|HTTP| API
+    API -->|Uses| Core
+    Core -->|Calls| LLM
+    Core -->|Calls| OCR
+    Core -->|Calls| VEC
+    Core -->|Calls| GRAPH
+    
+    style Core fill:#f9f,stroke:#333,stroke-width:2px
+    style API fill:#bbf,stroke:#333,stroke-width:2px
+    style UI fill:#bfb,stroke:#333,stroke-width:2px
+```
+
+**Tech Stack**: Python, FastAPI, Next.js, model-agnostic (swappable LLM/OCR/embeddings)
+
+**Getting Started**: See [backend/docs/ARCHITECTURE.md](backend/docs/ARCHITECTURE.md) and [docs/PROPOSAL.md](docs/PROPOSAL.md).
