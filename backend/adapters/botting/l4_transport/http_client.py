@@ -8,9 +8,11 @@ Key capabilities added on top of Worker 1's fetch_raw/fetch split:
 """
 from __future__ import annotations
 
+import gzip
 import time
 import urllib.parse
 import urllib.request
+import zlib
 from typing import Callable, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import (
@@ -41,7 +43,9 @@ _DEFAULT_HEADERS: dict[str, str] = {
         "image/avif,image/webp,*/*;q=0.8"
     ),
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    # urllib does not decode encodings automatically. Only advertise what
+    # _decode_content_encoding supports.
+    "Accept-Encoding": "gzip, deflate",
     "DNT": "1",
     "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
@@ -205,7 +209,9 @@ class HttpClient(HtmlFetcherPort):
             with ctx as response:
                 body = response.read()
                 content_type = response.headers.get("Content-Type", "application/octet-stream")
+                content_encoding = response.headers.get("Content-Encoding", "")
                 status = response.status
+            body = _decode_content_encoding(body, content_encoding)
             return FetchResult(url=url, status=status, content_type=content_type, body=body)
         except HTTPError as e:
             if e.code in _RETRY_STATUSES:
@@ -250,6 +256,22 @@ class _LegacyProxyConfigAdapter:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _decode_content_encoding(body: bytes, content_encoding: str) -> bytes:
+    """Decode the compression encodings advertised by this client."""
+    encoding = content_encoding.lower().strip()
+    if not encoding or encoding == "identity":
+        return body
+    if encoding == "gzip":
+        return gzip.decompress(body)
+    if encoding == "deflate":
+        try:
+            return zlib.decompress(body)
+        except zlib.error:
+            return zlib.decompress(body, -zlib.MAX_WBITS)
+    # Preserve compatibility with unusual/malformed servers and simple response mocks.
+    # Unsupported encodings are never advertised by this client.
+    return body
 
 def _host(url: str) -> str:
     return urllib.parse.urlparse(url).hostname or url

@@ -61,6 +61,54 @@ SITE_STRUCTURE_SCHEMA: dict = {
 }
 
 
+LINK_DISCOVERY_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "selected_urls": {"type": "array", "items": {"type": "string"}},
+        "reason": {"type": "string"},
+    },
+    "required": ["selected_urls", "reason"],
+}
+
+
+LAYOUT_RULE_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "rules": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "selector": {"type": "string"},
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "ignore",
+                            "crawl_only",
+                            "extract_and_crawl",
+                            "extract_only",
+                        ],
+                    },
+                    "reason": {"type": "string"},
+                },
+                "required": ["selector", "role", "reason"],
+            },
+        },
+        "include_url_patterns": {"type": "array", "items": {"type": "string"}},
+        "exclude_url_patterns": {"type": "array", "items": {"type": "string"}},
+        "confidence": {"type": "number"},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": [
+        "rules",
+        "include_url_patterns",
+        "exclude_url_patterns",
+        "confidence",
+        "warnings",
+    ],
+}
+
+
 MARKDOWN_EXTRACTION_SCHEMA: dict = {
     "type": "object",
     "properties": {"markdown_content": {"type": "string"}},
@@ -154,6 +202,75 @@ def build_site_structure_prompt(sample_pages: list[dict], *, max_sample_pages: i
 
         Sample pages JSON:
         {json.dumps(sample_pages, ensure_ascii=False, indent=2)}
+        """
+    ).strip()
+
+
+def build_link_discovery_prompt(seed_url: str, navigation_links: list[dict]) -> str:
+    """Choose representative, objective-relevant samples from homepage navigation."""
+
+    return dedent(
+        f"""
+        You are the bounded link-sampling agent for a legal and regulatory crawler.
+
+        Select a small representative set of useful same-domain links from the main
+        top navigation. Cover distinct top-level sections and likely page layouts. Adapt
+        the number selected to link volume and content diversity. Do not select every
+        link. Prefer laws, regulations, guidance, decisions, publications, and document
+        indexes. Skip account, login, logout, search, contact, social, language, form,
+        action, and destructive links.
+
+        Return JSON only. Select only exact URLs present in NAVIGATION_LINKS.
+
+        Seed URL: {seed_url}
+        Schema: {_schema_block(LINK_DISCOVERY_SCHEMA)}
+        NAVIGATION_LINKS:
+        {json.dumps(navigation_links, ensure_ascii=False, indent=2)}
+        """
+    ).strip()
+
+
+def build_layout_rule_prompt(
+    samples: list[dict],
+    *,
+    previous_rules: dict | None = None,
+    failures: list[dict] | None = None,
+) -> str:
+    """Generate or revise deterministic four-role rules for one layout family."""
+
+    revision = ""
+    if previous_rules is not None:
+        revision = dedent(
+            f"""
+            This is a rule revision. Fix the concrete validation failures without
+            broadening selectors unnecessarily.
+            PREVIOUS_RULES:
+            {json.dumps(previous_rules, ensure_ascii=False, indent=2)}
+            VALIDATION_FAILURES:
+            {json.dumps(failures or [], ensure_ascii=False, indent=2)}
+            """
+        )
+
+    return dedent(
+        f"""
+        You are the Website Layout Rule Analyst. Infer reusable CSS-selector rules for
+        the sampled pages. A deterministic parser will apply them; do not extract page
+        content yourself.
+
+        Every rule must use exactly one role:
+        - ignore: neither extract this subtree nor crawl its links.
+        - crawl_only: do not extract text, but crawl qualified links inside it.
+        - extract_and_crawl: extract useful text/context and crawl qualified links.
+        - extract_only: extract useful text but do not crawl its links.
+
+        Prefer stable semantic tags, IDs, classes, ARIA roles, and attributes. Avoid
+        nth-child and text-dependent selectors. URL patterns are regular expressions.
+        Return JSON only and conform to the schema.
+
+        Schema: {_schema_block(LAYOUT_RULE_SCHEMA)}
+        SAMPLES:
+        {json.dumps(samples, ensure_ascii=False, indent=2)}
+        {revision}
         """
     ).strip()
 

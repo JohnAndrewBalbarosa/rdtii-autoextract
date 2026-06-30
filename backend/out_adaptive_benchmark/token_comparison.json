@@ -1,0 +1,47 @@
+{
+  "measurement": {
+    "kind": "exact_tokenizer_count_not_provider_billing",
+    "encoding": "cl100k_base",
+    "input_html": "test_law.html",
+    "input_html_sha256": "3437d12c770b9785a0a2bda010dc1ef6a119077ade9352487b7c199d6a52bccf",
+    "caveat": "Host-agent/tool-call tokens are not exposed. Naive=0 means zero application LLM API tokens. Provider-reported billing requires a live model."
+  },
+  "naive_tool_path": {
+    "pipeline": "frozen_html -> DomCleaner",
+    "llm_calls": 0,
+    "application_llm_tokens": 0,
+    "content_sha256": "dd8e1a37e7dd75a8befd82ee1c5176f980436fc11aab3b5ccebbe660995108fb",
+    "content_chars": 215,
+    "content": "Data Privacy Act 2026\nSection 1. Short Title. This Act shall be known as the Data Privacy Act 2026.\nSection 2. Consent. The consent of the individual is required before any collection or processing of personal data."
+  },
+  "adaptive_system_path": {
+    "pipeline": "link discovery agent -> layout rule agent -> deterministic parser",
+    "llm_calls": 2,
+    "calls": [
+      {
+        "purpose": "link_discovery",
+        "input_sha256": "9a87e7c6b70ec64aa9f542f06bd8b1ef0245f8dfa5c21fdd3289822b1c6b2695",
+        "output_sha256": "af35e26571ae7a6f49d908e0c1e510efa656944ab9f6dc36352fbd70ad57de7a",
+        "input_tokens": 221,
+        "output_tokens": 14,
+        "total_tokens": 235
+      },
+      {
+        "purpose": "layout_rules",
+        "input_sha256": "0069e549419c2b44333a6f7031ade1f12d5d6fe35967728f9bc20a89b4218507",
+        "output_sha256": "db13bad695f65cd9c3219abf2cd7dfec6f517c37e5f0eb0eeefd6ecccc6b6fee",
+        "input_tokens": 568,
+        "output_tokens": 49,
+        "total_tokens": 617
+      }
+    ],
+    "application_llm_tokens": 852,
+    "content_sha256": "dd8e1a37e7dd75a8befd82ee1c5176f980436fc11aab3b5ccebbe660995108fb",
+    "content_chars": 215,
+    "content": "Data Privacy Act 2026\nSection 1. Short Title. This Act shall be known as the Data Privacy Act 2026.\nSection 2. Consent. The consent of the individual is required before any collection or processing of personal data."
+  },
+  "comparison": {
+    "additional_application_llm_tokens_for_adaptive": 852,
+    "same_extracted_content": true
+  }
+}

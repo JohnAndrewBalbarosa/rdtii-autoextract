@@ -1,0 +1,63 @@
+{
+  "visited_urls": [
+    "https://example.com/"
+  ],
+  "skipped_urls": [],
+  "failed_urls": [],
+  "extracted_pages": [
+    {
+      "source_url": "https://example.com/",
+      "canonical_url": "https://example.com/",
+      "layout_id": "layout-9d682aba30d1",
+      "extraction_method": "ai_rules",
+      "content": "Example Domain This domain is for use in documentation examples without needing permission. Avoid use in operations. Learn more",
+      "discovered_links": [],
+      "rule_version": 1,
+      "warnings": []
+    }
+  ],
+  "learned_layouts": [
+    {
+      "layout_id": "layout-9d682aba30d1",
+      "fingerprint": {
+        "landmarks": [],
+        "heading_levels": [
+          "h1"
+        ],
+        "body_classes": [],
+        "main_signatures": []
+      },
+      "sample_urls": [
+        "https://example.com/"
+      ],
+      "rules": {
+        "rules": [
+          {
+            "selector": "script, style, template, noscript, header, footer, nav",
+            "role": "ignore",
+            "reason": "non-content and page chrome"
+          },
+          {
+            "selector": "main, article, body",
+            "role": "extract_and_crawl",
+            "reason": "smoke-test content"
+          }
+        ],
+        "include_url_patterns": [],
+        "exclude_url_patterns": [
+          "login|logout|delete|action"
+        ],
+        "confidence": 0.5,
+        "warnings": [
+          "deterministic smoke agent; not production inference"
+        ]
+      },
+      "validation": {
+        "passed": true,
+        "failures": []
+      },
+      "revision_count": 0,
+      "final_extraction_method": "ai_rules"
+    }
+  ]
+}

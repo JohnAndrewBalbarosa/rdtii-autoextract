@@ -1,0 +1,72 @@
+{
+  "visited_urls": [
+    "https://www.pdpc.gov.sg/"
+  ],
+  "skipped_urls": [],
+  "failed_urls": [],
+  "extracted_pages": [
+    {
+      "source_url": "https://www.pdpc.gov.sg/",
+      "canonical_url": "https://www.pdpc.gov.sg/",
+      "layout_id": "layout-8acac54d6f59",
+      "extraction_method": "ai_rules",
+      "content": "Skip to main content Back to top",
+      "discovered_links": [
+        "https://www.pdpc.gov.sg/"
+      ],
+      "rule_version": 1,
+      "warnings": []
+    }
+  ],
+  "learned_layouts": [
+    {
+      "layout_id": "layout-8acac54d6f59",
+      "fingerprint": {
+        "landmarks": [
+          "footer",
+          "header",
+          "main",
+          "nav"
+        ],
+        "heading_levels": [
+          "h2"
+        ],
+        "body_classes": [],
+        "main_signatures": [
+          "main#."
+        ]
+      },
+      "sample_urls": [
+        "https://www.pdpc.gov.sg/"
+      ],
+      "rules": {
+        "rules": [
+          {
+            "selector": "script, style, template, noscript, header, footer, nav",
+            "role": "ignore",
+            "reason": "non-content and page chrome"
+          },
+          {
+            "selector": "main, article, body",
+            "role": "extract_and_crawl",
+            "reason": "smoke-test content"
+          }
+        ],
+        "include_url_patterns": [],
+        "exclude_url_patterns": [
+          "login|logout|delete|action"
+        ],
+        "confidence": 0.5,
+        "warnings": [
+          "deterministic smoke agent; not production inference"
+        ]
+      },
+      "validation": {
+        "passed": true,
+        "failures": []
+      },
+      "revision_count": 0,
+      "final_extraction_method": "ai_rules"
+    }
+  ]
+}
