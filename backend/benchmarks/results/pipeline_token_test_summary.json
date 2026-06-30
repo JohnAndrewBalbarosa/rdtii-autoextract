@@ -1,0 +1,14 @@
+{
+  "raw_html_tokens": {
+    "inspect_au": 77125,
+    "walkthrough_au": 103171
+  },
+  "verified_layout_learned_once": true,
+  "verified_per_page_extraction_zero_llm_tokens": true,
+  "spotcheck_pages_100": {
+    "pipeline_total": 10047,
+    "agent_total_lo": 7772500,
+    "x_cheaper": 773.6
+  },
+  "verdict": "The token-savings MECHANISM is sound and independently verified in real code, but the headline '773x cheaper' multiplier rests on a MODELED (not empirically measured) agent baseline, so the relative magnitude is an assumption rather than a measurement. Mechanism evidence: in scrape_page the layout is fetched from cache at adaptive_crawler.py:223 (self._layouts.get(layout_id)) and the only learning LLM call (_learn_layout -> self._llm.complete at :282-286, agent_profile 'layout_rule_agent') fires solely when layout is None (:224-226); a second same-fingerprint page finds layout != None, skips learning, and goes straight to _apply_rules at :228, which is pure BeautifulSoup (:297-326) containing zero self._llm references. The only other per-page LLM path is the validation-revision loop at :231-244, which fires only on validation failure AND is bounded by max_revision_attempts (a per-layout cached counter), so it is amortized, not per-page. Harness run (100 pages, inspect_au) corroborates this: by_stage shows layout_rule_agent called exactly ONCE (not 100x), pipeline.per_page_extraction_llm_tokens == 0, pipeline total 10047 tok, and savings.x_cheaper_vs_agent_lo 773.6 == agent_lo 7772500 / pipeline_total 10047 (consistent). Independently confirmed raw-HTML tiktoken cl100k_base counts: inspect_au 77125, walkthrough_au 103171 (both fixtures identical at out/ and benchmarks/data/). CAVEATS (skeptical): (1) the agent baseline at pipeline_token_test.py:116-117 is a formula pages*(600+raw_html_tokens), assuming a naive agent re-ingests full raw HTML every page; it is NOT a measured agent run, so a smarter agent that pre-strips/caches HTML would shrink the gap well below 773x. (2) The harness pins max_revision_attempts=0, so revision-loop tokens are excluded by construction; real runs with revisions enabled would add bounded one-time-per-layout cost (still not per-page). (3) per_page_extraction_llm_tokens is hardcoded 0 in the report dict (:128), but it is honestly corroborated because by_stage contains only the single layout_rule_agent call. (4) Canned LLM output (65 tok) understates real rule-output size, but that cost is paid once per layout and is immaterial. CONCLUSION: the architectural claim 'after a layout is learned once, per-page extraction costs 0 LLM tokens' is TRUE and verified in the real code path; the specific 773x figure is directionally credible but baseline-dependent and should be presented as 'vs a naive raw-HTML-per-page agent', not as a universal constant."
+}

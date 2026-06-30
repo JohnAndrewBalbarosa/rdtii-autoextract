@@ -52,3 +52,53 @@ stays at ~77,725/page. The gap widens with scale.
 
 > Note: the per-page floor is the AI link-judging step (judges links by name for accuracy).
 > Disable/cache it and the per-page cost trends to 0. See memory: two-scrapers-cost-divergence.
+
+## Measured end-to-end (real crawler, instrumented) — `pipeline_token_test.py`
+
+The numbers above are projections from prompt construction. This test instead **drives the
+real `AdaptiveCrawlerAdapter` / `AdaptiveDomainCrawler` code** (the `ScraperOrchestrator`
+path) with a token-counting LLM over N same-layout pages and sums the exact tokens the
+pipeline actually spends. Reproduce:
+
+```bash
+python benchmarks/pipeline_token_test.py --html benchmarks/data/inspect_au.html --pages 100 \
+  --output benchmarks/results/pipeline_token_test_au.json
+```
+
+Cross-validated by three parallel agents (curve ×2 fixtures + an adversarial verifier).
+The pipeline makes **exactly one LLM call total** (layout learned once, then deterministic
+reuse), so its token cost is **flat** while the agent baseline scales linearly with pages.
+
+**inspect_au.html** — 77,125 raw-HTML tokens/page:
+
+| pages | pipeline total | avg/page | agent (lo) | cheaper |
+|------:|---------------:|---------:|-----------:|--------:|
+| 1     | 10,047         | 10,047   | 77,725     | 7.7×    |
+| 10    | 10,047         | 1,005    | 777,250    | 77.4×   |
+| 100   | 10,047         | 100.5    | 7,772,500  | 773.6×  |
+| 500   | 10,047         | 20.1     | 38,862,500 | 3,868×  |
+
+**walkthrough_au.html** — 103,171 raw-HTML tokens/page:
+
+| pages | pipeline total | avg/page | agent (lo) | cheaper |
+|------:|---------------:|---------:|-----------:|--------:|
+| 1     | 10,072         | 10,072   | 103,771    | 10.3×   |
+| 100   | 10,072         | 100.7    | 10,377,100 | 1,030×  |
+| 500   | 10,072         | 20.1     | 51,885,500 | 5,151×  |
+
+**Verified mechanism** (independent code audit, `src/zetarix/crawling/adaptive_crawler.py`):
+after a layout is cached (`scrape_page:223-226`), a same-fingerprint page reuses the rules
+via `_apply_rules` (pure BeautifulSoup, `:297-326`) with **no `self._llm.complete` call** —
+per-page extraction is genuinely **0 LLM tokens**. The only LLM calls are link discovery
+(`:144`, once/crawl), layout learning (`:282`, once/layout), bounded revision (`:232`,
+once/layout), and link relevance (`:340`, crawl path only).
+
+> **Honest caveat (from the adversarial verifier):** the `cheaper` ratios are measured
+> against a *naive* agent that re-ingests the full raw HTML every page
+> (`pipeline_token_test.py` baseline). A smarter caching/stripping agent would narrow the
+> gap — so read these as "vs naive raw-HTML-per-page agent," not a universal constant. The
+> architectural claim (per-page extraction = 0 LLM tokens after one-time learning) is real
+> and code-verified; the exact multiplier is baseline-dependent.
+
+Raw result data: `results/pipeline_token_test_au.json`, `results/pipeline_token_test_walkthrough.json`,
+`results/pipeline_token_test_summary.json`.

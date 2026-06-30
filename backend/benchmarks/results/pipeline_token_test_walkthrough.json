@@ -1,0 +1,78 @@
+{
+  "fixture": "benchmarks/data/walkthrough_au.html",
+  "raw_html_tokens_per_page": 103171,
+  "curve": [
+    {
+      "pages": 1,
+      "pipeline_total": 10072,
+      "pipeline_avg_per_page": 10072.0,
+      "pipeline_llm_calls": 1,
+      "agent_total_lo": 103771,
+      "x_cheaper": 10.3,
+      "pipeline_pct_of_agent": 9.71
+    },
+    {
+      "pages": 5,
+      "pipeline_total": 10072,
+      "pipeline_avg_per_page": 2014.4,
+      "pipeline_llm_calls": 1,
+      "agent_total_lo": 518855,
+      "x_cheaper": 51.5,
+      "pipeline_pct_of_agent": 1.94
+    },
+    {
+      "pages": 10,
+      "pipeline_total": 10072,
+      "pipeline_avg_per_page": 1007.2,
+      "pipeline_llm_calls": 1,
+      "agent_total_lo": 1037710,
+      "x_cheaper": 103.0,
+      "pipeline_pct_of_agent": 0.97
+    },
+    {
+      "pages": 25,
+      "pipeline_total": 10072,
+      "pipeline_avg_per_page": 402.9,
+      "pipeline_llm_calls": 1,
+      "agent_total_lo": 2594275,
+      "x_cheaper": 257.6,
+      "pipeline_pct_of_agent": 0.39
+    },
+    {
+      "pages": 50,
+      "pipeline_total": 10072,
+      "pipeline_avg_per_page": 201.4,
+      "pipeline_llm_calls": 1,
+      "agent_total_lo": 5188550,
+      "x_cheaper": 515.1,
+      "pipeline_pct_of_agent": 0.19
+    },
+    {
+      "pages": 100,
+      "pipeline_total": 10072,
+      "pipeline_avg_per_page": 100.7,
+      "pipeline_llm_calls": 1,
+      "agent_total_lo": 10377100,
+      "x_cheaper": 1030.3,
+      "pipeline_pct_of_agent": 0.1
+    },
+    {
+      "pages": 250,
+      "pipeline_total": 10072,
+      "pipeline_avg_per_page": 40.3,
+      "pipeline_llm_calls": 1,
+      "agent_total_lo": 25942750,
+      "x_cheaper": 2575.7,
+      "pipeline_pct_of_agent": 0.04
+    },
+    {
+      "pages": 500,
+      "pipeline_total": 10072,
+      "pipeline_avg_per_page": 20.1,
+      "pipeline_llm_calls": 1,
+      "agent_total_lo": 51885500,
+      "x_cheaper": 5151.5,
+      "pipeline_pct_of_agent": 0.02
+    }
+  ]
+}
