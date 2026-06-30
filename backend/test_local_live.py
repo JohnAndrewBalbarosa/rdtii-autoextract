@@ -16,15 +16,15 @@ import os
 import json
 
 # Add current directory to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
-from adapters.llm.router import LLMRouter
-from adapters.botting.l4_transport.playwright_client import PlaywrightClient
-from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
-from adapters.botting.scaffolds.scaffold_registry import ScaffoldRegistry
-from adapters.botting.l7_application.pipeline_adapter import PipelineAdapter
-from core.pipeline.document_validator import DocumentComplianceValidator
-from core.pipeline.scraper_orchestrator import ScraperOrchestrator
+from zetarix.llm.router import LLMRouter
+from zetarix.transport.playwright_client import PlaywrightClient
+from zetarix.cleaning.dom_cleaner import DomCleaner
+from zetarix.scaffolds.scaffold_registry import ScaffoldRegistry
+from zetarix.crawling.pipeline_adapter import PipelineAdapter
+from zetarix.validation.document_validator import DocumentComplianceValidator
+from zetarix.orchestration.scraper_orchestrator import ScraperOrchestrator
 
 
 def main() -> None:

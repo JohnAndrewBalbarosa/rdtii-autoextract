@@ -16,8 +16,8 @@ from typing import Any
 
 import pytest
 
-from core.pipeline.parallel_matcher import ParallelMatcher
-from core.pipeline.set_trie import SetTrieIndex
+from zetarix.scoring.parallel_matcher import ParallelMatcher
+from zetarix.scoring.set_trie import SetTrieIndex
 
 
 # ---------------------------------------------------------------------------

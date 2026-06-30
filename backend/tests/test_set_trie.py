@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import random
 
-from core.pipeline.set_trie import SetTrieIndex, SetTrieItem
+from zetarix.scoring.set_trie import SetTrieIndex, SetTrieItem
 
 # A small tag universe makes random subset/superset relations frequent enough to exercise
 # both the matching and the pruning paths.

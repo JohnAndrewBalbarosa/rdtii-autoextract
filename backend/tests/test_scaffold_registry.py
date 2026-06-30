@@ -1,8 +1,8 @@
 import pytest
-from adapters.botting.scaffolds.scaffold_registry import ScaffoldRegistry
-from adapters.botting.scaffolds.homeaffairs_gov_au import HomeAffairsScaffold
-from adapters.botting.scaffolds.sso_agc_gov_sg import SSOAgcScaffold
-from adapters.botting.scaffolds.pdpc_gov_sg import PDPCScaffold
+from zetarix.scaffolds.scaffold_registry import ScaffoldRegistry
+from zetarix.scaffolds.homeaffairs_gov_au import HomeAffairsScaffold
+from zetarix.scaffolds.sso_agc_gov_sg import SSOAgcScaffold
+from zetarix.scaffolds.pdpc_gov_sg import PDPCScaffold
 
 
 def test_scaffold_registry_matches_homeaffairs():

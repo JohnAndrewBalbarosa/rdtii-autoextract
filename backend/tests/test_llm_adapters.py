@@ -6,14 +6,14 @@ import pytest
 from unittest.mock import patch, MagicMock
 import urllib.error
 
-from adapters.llm.remote_provider import (
+from zetarix.llm.remote_provider import (
     RemoteLLMProvider,
     validate_json_schema,
     prepare_prompt,
     parse_and_clean_json,
 )
-from adapters.llm.local_provider import LocalLLMProvider
-from adapters.llm.router import LLMRouter
+from zetarix.llm.local_provider import LocalLLMProvider
+from zetarix.llm.router import LLMRouter
 
 
 def test_validate_json_schema() -> None:

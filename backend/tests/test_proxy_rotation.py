@@ -4,9 +4,9 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 
-from adapters.botting.l4_transport.proxy_config import ProxyConfig
-from adapters.botting.l4_transport.http_client import HttpClient
-from adapters.botting.l4_transport.simulated_proxy_server import ThreadedProxyServer, get_simulated_residential_ip
+from zetarix.transport.proxy_config import ProxyConfig
+from zetarix.transport.http_client import HttpClient
+from zetarix.transport.simulated_proxy_server import ThreadedProxyServer, get_simulated_residential_ip
 
 # A simple target server to verify that requests are correctly forwarded by the proxy.
 class MockTargetHandler(BaseHTTPRequestHandler):
@@ -118,7 +118,7 @@ def test_free_proxy_list_integration(monkeypatch):
     # Mock FreeProxyManager's _fetch_proxies to return a controlled list of mock proxies
     mock_proxies = ["http://192.168.1.100:80", "http://192.168.1.101:8080"]
     
-    from adapters.botting.l4_transport.proxy_config import FreeProxyManager
+    from zetarix.transport.proxy_config import FreeProxyManager
     
     # Force reset FreeProxyManager singleton state for the test
     manager = FreeProxyManager()

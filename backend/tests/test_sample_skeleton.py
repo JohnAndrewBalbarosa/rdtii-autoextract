@@ -7,7 +7,7 @@ See memory: two-scrapers-cost-divergence.
 
 from __future__ import annotations
 
-from adapters.botting.l7_application.adaptive_crawler import AdaptiveDomainCrawler
+from zetarix.crawling.adaptive_crawler import AdaptiveDomainCrawler
 
 HTML = (
     "<html><body><main class='legal-content' id='doc'>"

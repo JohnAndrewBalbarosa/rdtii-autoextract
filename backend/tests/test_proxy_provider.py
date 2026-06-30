@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from adapters.botting.l4_transport.proxy_provider import ProxyEndpoint, ProxyProvider
-from adapters.botting.l4_transport.proxy_providers import (
+from zetarix.transport.proxy_provider import ProxyEndpoint, ProxyProvider
+from zetarix.transport.proxy_providers import (
     ConfiguredRotatingProxyProvider,
     FreeProxyProvider,
     NoProxyProvider,
@@ -22,7 +22,7 @@ from adapters.botting.l4_transport.proxy_providers import (
     proxy_provider_from_config,
     _parse_url,
 )
-from adapters.botting.l4_transport.http_client import HttpClient, _DEFAULT_HEADERS
+from zetarix.transport.http_client import HttpClient, _DEFAULT_HEADERS
 
 
 # ---------------------------------------------------------------------------
@@ -206,14 +206,14 @@ class TestBanHandling:
         def fake_do_fetch(url, endpoint):
             nonlocal call_count
             call_count += 1
-            from adapters.botting.l4_transport.http_client import _BanError
+            from zetarix.transport.http_client import _BanError
             if call_count <= 2:
                 raise _BanError(403, url)
             # third attempt succeeds
             return FetchResult_stub(url)
 
         def FetchResult_stub(url):
-            from adapters.botting.l4_transport.fetch_result import FetchResult
+            from zetarix.transport.fetch_result import FetchResult
             return FetchResult(url=url, status=200, content_type="text/html", body=b"OK")
 
         client = HttpClient(
@@ -240,10 +240,10 @@ class TestBanHandling:
         def fake_do_fetch(url, endpoint):
             nonlocal call_count
             call_count += 1
-            from adapters.botting.l4_transport.http_client import _BanError
+            from zetarix.transport.http_client import _BanError
             if call_count == 1:
                 raise _BanError(429, url)
-            from adapters.botting.l4_transport.fetch_result import FetchResult
+            from zetarix.transport.fetch_result import FetchResult
             return FetchResult(url=url, status=200, content_type="text/html", body=b"ok")
 
         client = HttpClient(
@@ -260,7 +260,7 @@ class TestBanHandling:
         assert len(sleeps) == 1
 
     def test_exhausted_retries_raises(self):
-        from adapters.botting.l4_transport.http_client import _BanError
+        from zetarix.transport.http_client import _BanError
 
         def always_ban(url, endpoint):
             raise _BanError(403, url)
@@ -367,7 +367,7 @@ class TestLegacyCompatibility:
 
     def test_proxy_config_kwarg_still_works(self):
         """HttpClient(proxy_config=...) must not raise (old signature)."""
-        from adapters.botting.l4_transport.proxy_config import ProxyConfig
+        from zetarix.transport.proxy_config import ProxyConfig
         config = ProxyConfig(proxy_url=None)
         client = HttpClient(proxy_config=config)
         # NoProxy path: get() returns None
@@ -566,7 +566,7 @@ class TestHttpClientProactiveSelection:
             _sleep=lambda _: None,
         )
 
-        from adapters.botting.l4_transport.fetch_result import FetchResult
+        from zetarix.transport.fetch_result import FetchResult
         ok = FetchResult(url="http://x/", status=200, content_type="text/html", body=b"OK")
         with patch.object(client, "_do_fetch", return_value=ok):
             client.fetch_raw("http://x/")

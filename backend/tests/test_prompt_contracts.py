@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from adapters.llm.prompt_contracts import (
+from zetarix.llm.prompt_contracts import (
     CONTENT_TAGGING_SCHEMA,
     LAYOUT_RULE_SCHEMA,
     LINK_DISCOVERY_SCHEMA,

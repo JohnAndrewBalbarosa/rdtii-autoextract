@@ -8,11 +8,11 @@ PipelineAdapter at scale. See memory: two-scrapers-cost-divergence.
 
 from __future__ import annotations
 
-from adapters.botting.l7_application.adaptive_crawler import AdaptiveDomainCrawler, CrawlConfig
-from adapters.botting.l7_application.adaptive_crawler_adapter import AdaptiveCrawlerAdapter
-from core.domain.document import ParsedDocument
-from core.pipeline.document_validator import DocumentComplianceValidator
-from core.pipeline.scraper_orchestrator import ScraperOrchestrator
+from zetarix.crawling.adaptive_crawler import AdaptiveDomainCrawler, CrawlConfig
+from zetarix.crawling.adaptive_crawler_adapter import AdaptiveCrawlerAdapter
+from zetarix.domain.document import ParsedDocument
+from zetarix.validation.document_validator import DocumentComplianceValidator
+from zetarix.orchestration.scraper_orchestrator import ScraperOrchestrator
 
 
 # Same layout family (identical landmarks/heading levels/main signature), different text.

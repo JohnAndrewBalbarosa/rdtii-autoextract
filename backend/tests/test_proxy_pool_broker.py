@@ -12,13 +12,13 @@ from typing import List
 
 import pytest
 
-from adapters.botting.l4_transport.proxy_provider import ProxyEndpoint
-from adapters.botting.l4_transport.proxy_pool_broker import (
+from zetarix.transport.proxy_provider import ProxyEndpoint
+from zetarix.transport.proxy_pool_broker import (
     PoolExhausted,
     ProxyLease,
     ProxyPoolBroker,
 )
-from adapters.botting.l4_transport.proxy_providers import (
+from zetarix.transport.proxy_providers import (
     BrokeredProxyProvider,
     proxy_provider_from_config,
 )

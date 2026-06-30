@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from core.domain.access import (
+from zetarix.domain.access import (
     AccessDecision,
     AccessDecisionKind,
     AccessLayer,
@@ -12,7 +12,7 @@ from core.domain.access import (
     AccessSignalSeverity,
     RetrievalPolicy,
 )
-from core.pipeline.compliant_retrieval import (
+from zetarix.retrieval.compliant_retrieval import (
     CompliantRetrievalPipeline,
     InMemoryRetrievalAuditor,
     StaticAccessPolicyEvaluator,

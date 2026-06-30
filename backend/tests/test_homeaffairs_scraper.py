@@ -1,10 +1,10 @@
 import pytest
-from core.ports import LLMProvider, HtmlFetcherPort
-from adapters.botting.l4_transport.factory import TransportFactory
-from adapters.botting.scaffolds.scaffold_registry import ScaffoldRegistry
-from adapters.botting.scaffolds.homeaffairs_gov_au import HomeAffairsScaffold
-from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
-from adapters.botting.l7_application.pipeline_adapter import PipelineAdapter
+from zetarix.ports import LLMProvider, HtmlFetcherPort
+from zetarix.transport.factory import TransportFactory
+from zetarix.scaffolds.scaffold_registry import ScaffoldRegistry
+from zetarix.scaffolds.homeaffairs_gov_au import HomeAffairsScaffold
+from zetarix.cleaning.dom_cleaner import DomCleaner
+from zetarix.crawling.pipeline_adapter import PipelineAdapter
 
 class MockLLMProvider(LLMProvider):
     def complete(self, prompt: str, schema: dict, agent_profile: str = "main_controller") -> dict:

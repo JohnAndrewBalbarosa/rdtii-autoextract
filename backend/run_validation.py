@@ -16,10 +16,10 @@ import os
 import sys
 from collections import defaultdict
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
-from core.pipeline.golden_dataset import load_gold_records, load_reference_items
-from core.pipeline.scoring import discovery_diff, gold_to_match_item, score
+from zetarix.scoring.golden_dataset import load_gold_records, load_reference_items
+from zetarix.scoring.scoring import discovery_diff, gold_to_match_item, score
 
 _DOCS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs")
 _RULE = "=" * 78

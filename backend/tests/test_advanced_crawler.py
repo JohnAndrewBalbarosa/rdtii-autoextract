@@ -1,8 +1,8 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from adapters.botting.l4_transport.proxy_config import ProxyConfig
-from adapters.botting.l4_transport.advanced_crawler import AdvancedCrawler
-from adapters.botting.l4_transport.pdf_parser import PdfParser
+from zetarix.transport.proxy_config import ProxyConfig
+from zetarix.transport.advanced_crawler import AdvancedCrawler
+from zetarix.transport.pdf_parser import PdfParser
 
 def test_fallback_on_fetch_error():
     # Verify: BS4 fallback on fetch error (i.e. fallback to HttpClient when PlaywrightClient fails)
@@ -130,7 +130,7 @@ def test_download_and_parse_pdf():
     pdf_parser.download_pdf = MagicMock(return_value=mock_pdf_bytes)
     
     # Patch pypdf PdfReader
-    with patch("adapters.botting.l4_transport.pdf_parser.PdfReader") as mock_pdf_reader:
+    with patch("zetarix.transport.pdf_parser.PdfReader") as mock_pdf_reader:
         mock_reader_inst = MagicMock()
         mock_page_1 = MagicMock()
         mock_page_1.extract_text.return_value = "Page 1 Content"

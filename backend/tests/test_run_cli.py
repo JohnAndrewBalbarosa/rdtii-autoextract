@@ -15,8 +15,8 @@ import os
 import pytest
 
 import run
-from core.pipeline import golden_dataset
-from core.pipeline.output_emitter import CSV_COLUMNS
+from zetarix.scoring import golden_dataset
+from zetarix.orchestration.output_emitter import CSV_COLUMNS
 
 # The real workbooks live in the repo-root docs/ (golden_dataset's default), which may
 # differ from backend/docs/. Use that loader's own default so the skip guard matches the

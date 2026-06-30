@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.domain.indicator_codes import pillar_of, to_canonical, to_db
+from zetarix.domain.indicator_codes import pillar_of, to_canonical, to_db
 
 
 # --- to_canonical ---

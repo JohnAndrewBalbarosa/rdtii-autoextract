@@ -14,8 +14,8 @@ import os
 import pytest
 
 import run
-from adapters.botting.l4_transport.fetch_result import FetchResult
-from core.pipeline.output_emitter import CSV_COLUMNS
+from zetarix.transport.fetch_result import FetchResult
+from zetarix.orchestration.output_emitter import CSV_COLUMNS
 
 _FIXTURE_URL = "https://sso.agc.gov.sg/Act/PDPA2012"
 _FIXTURE_HTML = (

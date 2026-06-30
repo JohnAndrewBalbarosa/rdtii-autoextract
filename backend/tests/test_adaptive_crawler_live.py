@@ -11,8 +11,8 @@ import re
 
 import pytest
 
-from adapters.botting.l4_transport.http_client import HttpClient
-from adapters.botting.l7_application.adaptive_crawler import AdaptiveDomainCrawler, CrawlConfig
+from zetarix.transport.http_client import HttpClient
+from zetarix.crawling.adaptive_crawler import AdaptiveDomainCrawler, CrawlConfig
 
 
 class DeterministicSmokeAgent:

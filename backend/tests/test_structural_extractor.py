@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from adapters.extraction.structural_extractor import StructuralExtractor
-from core.domain.document import ParsedDocument, RawSection
+from zetarix.extraction.structural_extractor import StructuralExtractor
+from zetarix.domain.document import ParsedDocument, RawSection
 
 
 def test_each_scope_becomes_one_node(parsed_document: ParsedDocument) -> None:

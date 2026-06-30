@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.domain.document import (
+from zetarix.domain.document import (
     DocumentGuide,
     GuideSectionHint,
     ParsedDocument,
@@ -13,7 +13,7 @@ from core.domain.document import (
     SectionTaggingTask,
     TagEvidence,
 )
-from core.pipeline.guided_tagging import (
+from zetarix.extraction.guided_tagging import (
     GuidedTaggingPipeline,
     GuidedTaggingReconciler,
     SectionTaskBuilder,

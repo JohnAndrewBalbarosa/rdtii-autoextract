@@ -3,8 +3,8 @@ from __future__ import annotations
 import gzip
 import zlib
 
-from adapters.botting.l7_application.adaptive_crawler import AdaptiveDomainCrawler, CrawlConfig
-from adapters.botting.l4_transport.http_client import _decode_content_encoding
+from zetarix.crawling.adaptive_crawler import AdaptiveDomainCrawler, CrawlConfig
+from zetarix.transport.http_client import _decode_content_encoding
 
 
 HOME = """

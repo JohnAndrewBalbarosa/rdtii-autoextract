@@ -6,9 +6,9 @@ import pytest
 
 from datetime import date
 
-from core.domain.entities import DiscoveryTag, Finding, Pillar
-from core.pipeline.golden_dataset import GoldRecord, ReferenceItem
-from core.pipeline.scoring import (
+from zetarix.domain.entities import DiscoveryTag, Finding, Pillar
+from zetarix.scoring.golden_dataset import GoldRecord, ReferenceItem
+from zetarix.scoring.scoring import (
     MatchItem,
     act_similarity,
     discovery_diff,

@@ -5,13 +5,13 @@ import io
 import pytest
 from unittest.mock import MagicMock, patch
 
-from adapters.botting.l4_transport.fetch_result import FetchResult, _is_text_content_type, _charset_from_content_type
-from adapters.botting.l4_transport.http_client import HttpClient
-from adapters.botting.l4_transport.factory import TransportFactory
-from adapters.botting.l4_transport.pdf_parser import PdfParser
-from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
-from adapters.botting.l7_application.pipeline_adapter import PipelineAdapter
-from core.ports import LLMProvider, HtmlFetcherPort
+from zetarix.transport.fetch_result import FetchResult, _is_text_content_type, _charset_from_content_type
+from zetarix.transport.http_client import HttpClient
+from zetarix.transport.factory import TransportFactory
+from zetarix.transport.pdf_parser import PdfParser
+from zetarix.cleaning.dom_cleaner import DomCleaner
+from zetarix.crawling.pipeline_adapter import PipelineAdapter
+from zetarix.ports import LLMProvider, HtmlFetcherPort
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +146,7 @@ class TestHttpClientBinaryPDF:
         fake_response.headers.get.return_value = "application/pdf"
         fake_response.status = 200
 
-        with patch("adapters.botting.l4_transport.http_client.urlopen", return_value=fake_response):
+        with patch("zetarix.transport.http_client.urlopen", return_value=fake_response):
             result = client.fetch("https://example.com/doc.pdf")
 
         # Must not raise; returns empty string for binary
@@ -162,7 +162,7 @@ class TestHttpClientBinaryPDF:
         fake_response.headers.get.return_value = "application/pdf"
         fake_response.status = 200
 
-        with patch("adapters.botting.l4_transport.http_client.urlopen", return_value=fake_response):
+        with patch("zetarix.transport.http_client.urlopen", return_value=fake_response):
             result = client.fetch_raw("https://example.com/doc.pdf")
 
         assert isinstance(result, FetchResult)

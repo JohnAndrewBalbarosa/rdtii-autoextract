@@ -10,7 +10,7 @@ import os
 
 import pytest
 
-from core.pipeline.golden_dataset import (
+from zetarix.scoring.golden_dataset import (
     MANDATORY_PILLARS,
     load_gold_records,
     load_reference_items,

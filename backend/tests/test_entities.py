@@ -10,7 +10,7 @@ from datetime import date
 
 import pytest
 
-from core.domain.entities import DiscoveryTag, Finding, Pillar, ReviewStatus
+from zetarix.domain.entities import DiscoveryTag, Finding, Pillar, ReviewStatus
 
 
 def _base_finding(**overrides) -> Finding:

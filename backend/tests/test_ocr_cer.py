@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.pipeline.ocr_cer import CerReport, cer, measure_cer
+from zetarix.scoring.ocr_cer import CerReport, cer, measure_cer
 
 
 # ---------------------------------------------------------------------------

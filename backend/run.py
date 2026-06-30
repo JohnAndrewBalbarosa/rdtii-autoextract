@@ -30,18 +30,18 @@ import time
 from datetime import date
 
 # Make `from core...` / `from adapters...` resolve when run as a plain script from any cwd.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
-from core.domain.document import CrawledDocument  # noqa: E402
-from core.domain.entities import DiscoveryTag, Finding, Pillar  # noqa: E402
-from core.domain.indicator_codes import to_canonical  # noqa: E402
-from core.pipeline.golden_dataset import (  # noqa: E402
+from zetarix.domain.document import CrawledDocument  # noqa: E402
+from zetarix.domain.entities import DiscoveryTag, Finding, Pillar  # noqa: E402
+from zetarix.domain.indicator_codes import to_canonical  # noqa: E402
+from zetarix.scoring.golden_dataset import (  # noqa: E402
     GoldRecord,
     load_gold_records,
     load_reference_items,
 )
-from core.pipeline.output_emitter import write_csv, write_json  # noqa: E402
-from core.pipeline.scoring import discovery_diff, finding_to_match_item  # noqa: E402
+from zetarix.orchestration.output_emitter import write_csv, write_json  # noqa: E402
+from zetarix.scoring.scoring import discovery_diff, finding_to_match_item  # noqa: E402
 
 MODEL_VERSION = "zetarix-round1-gold-1.0"
 
@@ -150,7 +150,7 @@ def _default_extractor():
     snippets. A real LLM extractor swaps in via the same port (``--source live`` plus a
     custom ``extractor=`` injection) with no other code change.
     """
-    from adapters.extraction.mock_provision_extractor import MockProvisionExtractor
+    from zetarix.extraction.mock_provision_extractor import MockProvisionExtractor
 
     return MockProvisionExtractor()
 
@@ -161,7 +161,7 @@ def _default_fetcher():
     Any object exposing ``fetch_raw(url) -> FetchResult`` is acceptable; tests inject a
     fake so the live path runs offline.
     """
-    from adapters.botting.l4_transport.http_client import HttpClient
+    from zetarix.transport.http_client import HttpClient
 
     return HttpClient()
 
@@ -195,12 +195,12 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
 
     try:
         if result.is_pdf:
-            from adapters.botting.l4_transport.pdf_parser import PdfParser
+            from zetarix.transport.pdf_parser import PdfParser
 
             text = PdfParser().extract_text(result.body)
             return CrawledDocument(url=url, economy=country, text=text, is_pdf=True)
 
-        from adapters.botting.l6_presentation.dom_cleaner import DomCleaner
+        from zetarix.cleaning.dom_cleaner import DomCleaner
 
         text = DomCleaner().clean_html(result.text)
         return CrawledDocument(url=url, economy=country, text=text, is_pdf=False)

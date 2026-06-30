@@ -15,11 +15,11 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from adapters.botting.l6_presentation.dom_cleaner import DomCleaner  # noqa: E402
-from adapters.botting.l7_application.adaptive_crawler import AdaptiveDomainCrawler  # noqa: E402
-from adapters.llm.prompt_contracts import (  # noqa: E402
+from zetarix.cleaning.dom_cleaner import DomCleaner  # noqa: E402
+from zetarix.crawling.adaptive_crawler import AdaptiveDomainCrawler  # noqa: E402
+from zetarix.llm.prompt_contracts import (  # noqa: E402
     build_layout_rule_prompt,
     build_link_discovery_prompt,
 )

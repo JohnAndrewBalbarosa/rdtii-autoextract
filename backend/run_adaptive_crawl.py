@@ -10,14 +10,14 @@ import argparse
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
-from adapters.botting.l4_transport.http_client import HttpClient  # noqa: E402
-from adapters.botting.l7_application.adaptive_crawler import (  # noqa: E402
+from zetarix.transport.http_client import HttpClient  # noqa: E402
+from zetarix.crawling.adaptive_crawler import (  # noqa: E402
     AdaptiveDomainCrawler,
     CrawlConfig,
 )
-from adapters.llm.router import LLMRouter  # noqa: E402
+from zetarix.llm.router import LLMRouter  # noqa: E402
 
 
 def _parse_args(argv=None):

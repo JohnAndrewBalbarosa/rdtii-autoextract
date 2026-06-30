@@ -7,11 +7,11 @@ an ``article_section`` like "Section 26", and identical output across repeated r
 
 from __future__ import annotations
 
-from adapters.extraction.mock_provision_extractor import (
+from zetarix.extraction.mock_provision_extractor import (
     MOCK_CONFIDENCE,
     MockProvisionExtractor,
 )
-from core.domain.document import CrawledDocument
+from zetarix.domain.document import CrawledDocument
 
 # A small, realistic legal text. "transfer" -> P6-I1; "Section 26" sits next to it.
 _SAMPLE_P6_TEXT = (

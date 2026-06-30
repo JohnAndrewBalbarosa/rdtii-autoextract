@@ -8,8 +8,8 @@ from datetime import date
 
 import pytest
 
-from core.domain.entities import DiscoveryTag, Finding, Pillar
-from core.pipeline.output_emitter import (
+from zetarix.domain.entities import DiscoveryTag, Finding, Pillar
+from zetarix.orchestration.output_emitter import (
     CSV_COLUMNS,
     findings_to_csv_dicts,
     findings_to_json_objects,

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from core.domain.document import ParsedDocument, RawSection
-from core.pipeline.document_validator import DocumentComplianceValidator
+from zetarix.domain.document import ParsedDocument, RawSection
+from zetarix.validation.document_validator import DocumentComplianceValidator
 
 
 def _doc(sections: list[RawSection], url: str = "https://example.gov/law") -> ParsedDocument:
