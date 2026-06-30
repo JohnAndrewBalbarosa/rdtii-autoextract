@@ -24,6 +24,10 @@ data/raw/
 data/cache/
 .DS_Store
 
+# Scratch run outputs — live results go under out/ (ignored); never commit big cluster dumps
+out_live/
+out_live2/
+
 # Editors
 .vscode/
 .idea/
