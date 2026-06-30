@@ -1,0 +1,94 @@
+{
+  "measurement": {
+    "kind": "exact_tokenizer_count_not_provider_billing",
+    "encoding": "cl100k_base",
+    "input_html": "benchmarks\\data\\inspect_au.html",
+    "complexity": "T_pipeline(N) = O(1) + O(L*S) + O(N*k); avg/page -> O(L*S/N)+O(k) (1/N decay)"
+  },
+  "inputs": {
+    "raw_html_tokens": 77125,
+    "pipeline_one_time_tokens": 10426,
+    "pipeline_per_page_tokens": 2884,
+    "agent_per_page_tokens_lo": 77725,
+    "agent_per_page_tokens_hi": 155450,
+    "assumptions": {
+      "agent_overhead_per_turn": 600,
+      "agent_reingest_turns": 2,
+      "link_candidate_cap": 50
+    }
+  },
+  "curve": [
+    {
+      "pages": 1,
+      "pipeline_total": 13310,
+      "pipeline_avg_per_page": 13310.0,
+      "agent_total_lo": 77725,
+      "agent_total_hi": 155450,
+      "savings_x_vs_agent_lo": 5.8
+    },
+    {
+      "pages": 2,
+      "pipeline_total": 16194,
+      "pipeline_avg_per_page": 8097.0,
+      "agent_total_lo": 155450,
+      "agent_total_hi": 310900,
+      "savings_x_vs_agent_lo": 9.6
+    },
+    {
+      "pages": 5,
+      "pipeline_total": 24846,
+      "pipeline_avg_per_page": 4969.2,
+      "agent_total_lo": 388625,
+      "agent_total_hi": 777250,
+      "savings_x_vs_agent_lo": 15.6
+    },
+    {
+      "pages": 10,
+      "pipeline_total": 39266,
+      "pipeline_avg_per_page": 3926.6,
+      "agent_total_lo": 777250,
+      "agent_total_hi": 1554500,
+      "savings_x_vs_agent_lo": 19.8
+    },
+    {
+      "pages": 25,
+      "pipeline_total": 82526,
+      "pipeline_avg_per_page": 3301.0,
+      "agent_total_lo": 1943125,
+      "agent_total_hi": 3886250,
+      "savings_x_vs_agent_lo": 23.5
+    },
+    {
+      "pages": 50,
+      "pipeline_total": 154626,
+      "pipeline_avg_per_page": 3092.5,
+      "agent_total_lo": 3886250,
+      "agent_total_hi": 7772500,
+      "savings_x_vs_agent_lo": 25.1
+    },
+    {
+      "pages": 100,
+      "pipeline_total": 298826,
+      "pipeline_avg_per_page": 2988.3,
+      "agent_total_lo": 7772500,
+      "agent_total_hi": 15545000,
+      "savings_x_vs_agent_lo": 26.0
+    },
+    {
+      "pages": 250,
+      "pipeline_total": 731426,
+      "pipeline_avg_per_page": 2925.7,
+      "agent_total_lo": 19431250,
+      "agent_total_hi": 38862500,
+      "savings_x_vs_agent_lo": 26.6
+    },
+    {
+      "pages": 500,
+      "pipeline_total": 1452426,
+      "pipeline_avg_per_page": 2904.9,
+      "agent_total_lo": 38862500,
+      "agent_total_hi": 77725000,
+      "savings_x_vs_agent_lo": 26.8
+    }
+  ]
+}
