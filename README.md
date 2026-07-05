@@ -1,83 +1,77 @@
-# Zetarix
+# rdtii-autoextract
 
-> Open-source AI pipeline that automates ~80% of the UN ESCAP **RDTII** (Regional Digital
-> Trade Integration Index) digital-trade
-> regulatory workflow — **discover → describe** — across Asia-Pacific jurisdictions, leaving
-> the final ~20% for transparent human review.
->
-> Built by **Team Arkova** for the **Global Hackathon on AI for Digital Trade
-> Regulatory Analysis** (UN ESCAP & KMITL, 2026). Licensed under **Apache 2.0**.
+## Overview
 
-Mandatory scope: **Pillar 6 (Cross-border Data Flows)** + **Pillar 7 (Domestic Data
-Protection)**, at article-level granularity with the 6 mandatory fields.
+RDTII AutoExtract — open-source, model-agnostic AI pipeline automating ~80% of the UN ESCAP RDTII digital-trade regulatory workflow. Apache 2.0.
 
-## Why "model-agnostic"
+Repository: [JohnAndrewBalbarosa/rdtii-autoextract](https://github.com/JohnAndrewBalbarosa/rdtii-autoextract)
 
-Built on **ports & adapters (hexagonal) architecture**. The core domain depends only on
-interfaces; every AI model (LLM, OCR, captioner, embeddings, graph library) is a **swappable
-suggestion**, changed via config without touching the domain. Swappability is heavily scored
-(20 pts Stage 1 + 20 pts Stage 3).
+## Problem and Goal
 
-## Pipeline (5 stages)
+This project should be read as a technical build: it identifies a concrete workflow or research problem, implements a working system around that problem, and documents enough evidence for another person to understand, run, and evaluate the result.
 
-```
-discover → OCR + SigLIP-style captioning → tag + extract → human review → concept graph
-```
+Primary goals:
 
-The concept-graph stage connects tagged sections into a weighted, pruned graph
-(community detection + FCA generality hierarchy + PageRank) — the core architectural
-contribution. See [backend/docs/GRAPH_PIPELINE.md](backend/docs/GRAPH_PIPELINE.md).
+- Explain what the project does and who it is for.
+- Show the architecture and implementation choices.
+- Provide enough setup guidance for local review.
+- Report measured results when available.
+- Make limitations and next steps explicit instead of implying unverified impact.
 
-## Monorepo layout
+## System Design
 
-```
-.
-├── backend/    # Framework-agnostic core (ports/domain/pipeline) + FastAPI reference adapter
-│   ├── core/        # AGNOSTIC: ports (interfaces), entities, pipeline use-cases
-│   ├── adapters/    # Concrete LLM / OCR / vector / graph implementations — swap here
-│   ├── app/         # FastAPI reference adapter (thin HTTP layer)
-│   └── docs/        # ARCHITECTURE, REQUIREMENTS (Q&A-traced), GRAPH_PIPELINE, TECHNICAL_MEMO
-├── frontend/   # Next.js reviewer / audit UI for non-technical users
-└── docs/       # Project-level docs (PROPOSAL)
-```
+Current documented components:
 
-## Key documents
+- Frontend application or user interface layer.
+- Backend service, API, or domain layer.
+- Documentation folder for architecture, requirements, or supporting notes.
 
-- [docs/PROPOSAL.md](docs/PROPOSAL.md) — full project proposal
-- [docs/COMPLIANT_AUTOMATION_GUIDE.md](docs/COMPLIANT_AUTOMATION_GUIDE.md) — compliance-first automation, OSI-style observability, and AI coding guidelines
-- [backend/docs/ARCHITECTURE.md](backend/docs/ARCHITECTURE.md) — ports & adapters design
-- [backend/docs/REQUIREMENTS.md](backend/docs/REQUIREMENTS.md) — requirements traced from the Q&A
-- [backend/docs/GRAPH_PIPELINE.md](backend/docs/GRAPH_PIPELINE.md) — concept-graph model
-- [backend/docs/TECHNICAL_MEMO.md](backend/docs/TECHNICAL_MEMO.md) — submission memo (≤2 pages)
+Project tags:
 
-## License
+- To be tagged based on the final project stack.
 
-[Apache License 2.0](backend/LICENSE).
+## Setup and Usage
 
-## Architecture (UML)
+Use the commands below as the starting point for local setup. Verify environment variables, secrets, datasets, and external services before running production-like workflows.
 
-```mermaid
-graph TD
-    UI["Frontend<br/>Next.js<br/>Reviewer UI"]
-    API["FastAPI Adapter<br/>HTTP Layer"]
-    Core["Core Domain<br/>Pipeline Use-Cases<br/>Entities & Ports"]
-    LLM["LLM Adapter"]
-    OCR["OCR Adapter"]
-    VEC["Vector/Embeddings<br/>Adapter"]
-    GRAPH["Graph Library<br/>Adapter"]
-    
-    UI -->|HTTP| API
-    API -->|Uses| Core
-    Core -->|Calls| LLM
-    Core -->|Calls| OCR
-    Core -->|Calls| VEC
-    Core -->|Calls| GRAPH
-    
-    style Core fill:#f9f,stroke:#333,stroke-width:2px
-    style API fill:#bbf,stroke:#333,stroke-width:2px
-    style UI fill:#bfb,stroke:#333,stroke-width:2px
+```bash
+cd frontend
+npm install
+npm run dev
+cd ..
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-**Tech Stack**: Python, FastAPI, Next.js, model-agnostic (swappable LLM/OCR/embeddings)
+## Evaluation Method
 
-**Getting Started**: See [backend/docs/ARCHITECTURE.md](backend/docs/ARCHITECTURE.md) and [docs/PROPOSAL.md](docs/PROPOSAL.md).
+- Designed the pipeline around the UN ESCAP RDTII digital-trade regulatory workflow.
+- Separated the workflow into discover, OCR/captioning, tag/extract, human review, and concept-graph stages.
+- Kept AI providers behind ports and adapters so model choices can be swapped without rewriting the domain layer.
+
+## Results
+
+- Current project claim: automates about 80% of the discover-to-describe workflow while keeping the final 20% for transparent human review.
+- Measured extraction accuracy, reviewer agreement, latency, and jurisdiction-level coverage are not yet published in the README.
+
+## Interpretation
+
+- The repository has a clear automation target and architecture, but still needs benchmark evidence before the 80/20 split can be treated as a validated result.
+
+## Limitations
+
+- Results should only be treated as validated when this README includes the dataset, sample size, metric definition, and reproduction steps.
+- Any AI-generated, OCR-based, scraped, or heuristic output requires manual review before being used as ground truth.
+- Environment-dependent measurements such as latency, memory use, browser behavior, and API reliability should be re-measured on the target machine.
+
+## Recommendations and Future Work
+
+- Create a gold-label sample of RDTII documents and report field-level precision, recall, and F1.
+- Measure reviewer time saved before and after AI suggestions.
+- Report failure modes by document type, jurisdiction, language, and OCR quality.
+
+## Documentation Standard
+
+This README follows a technical-project structure: overview, goal, system design, setup, evaluation method, results, interpretation, limitations, and recommendations. Update the Results section whenever new measurements are available so project claims stay evidence-backed.
