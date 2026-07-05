@@ -54,11 +54,20 @@ pip install -r requirements.txt
 ## Results
 
 - Current project claim: automates about 80% of the discover-to-describe workflow while keeping the final 20% for transparent human review.
+- Token benchmark evidence is saved under `backend/benchmarks/results/`.
+- On the `inspect_au` fixture, deterministic cleaning reduced raw HTML from 77,125 tokens to 9,743 cleaned-text tokens, an 87.4% reduction.
+- On the `walkthrough_au` fixture, deterministic cleaning reduced raw HTML from 103,171 tokens to 9,743 cleaned-text tokens, a 90.6% reduction.
+- Structural skeleton prompts reduced the same fixtures by 88.1% and 91.1%, respectively, while preserving layout signals for selector learning.
+- The pipeline learned each page layout once, then reused cached layout rules so same-layout per-page extraction used 0 additional LLM tokens.
+- At 100 pages, the saved model reports 773.6x fewer application LLM tokens than a naive raw-HTML-per-page agent baseline on `inspect_au`; this multiplier is baseline-dependent, not a provider-billing measurement.
+- Deterministic quality checks reported 100.0% fingerprint stability across seven noise variants per fixture and no detected boilerplate contamination.
 - Measured extraction accuracy, reviewer agreement, latency, and jurisdiction-level coverage are not yet published in the README.
 
 ## Interpretation
 
 - The repository has a clear automation target and architecture, but still needs benchmark evidence before the 80/20 split can be treated as a validated result.
+- The token-saving mechanism has stronger evidence than the end-to-end RDTII extraction quality claim: compression, layout caching, and zero-token same-layout extraction are backed by saved benchmark artifacts.
+- The headline multiplier should be presented as a comparison against a naive agent baseline that re-ingests raw HTML per page; a smarter cached agent would reduce the gap.
 
 ## Limitations
 
@@ -71,6 +80,7 @@ pip install -r requirements.txt
 - Create a gold-label sample of RDTII documents and report field-level precision, recall, and F1.
 - Measure reviewer time saved before and after AI suggestions.
 - Report failure modes by document type, jurisdiction, language, and OCR quality.
+- Add provider-level tracing for real input/output token billing during a live multi-page crawl.
 
 ## Documentation Standard
 
