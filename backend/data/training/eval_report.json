@@ -1,0 +1,425 @@
+{
+  "results": [
+    {
+      "mode": "zero_shot",
+      "law_interpreter": {
+        "obligation_type_accuracy": 0.46875,
+        "scope_accuracy": 0.03125,
+        "n": 32,
+        "obligation_type_correct": 15,
+        "scope_correct": 1,
+        "by_jurisdiction": {
+          "India": {
+            "obligation_type_accuracy": 0.5,
+            "scope_accuracy": 0.25,
+            "n": 4
+          },
+          "Russian Federation": {
+            "obligation_type_accuracy": 1.0,
+            "scope_accuracy": 0.0,
+            "n": 2
+          },
+          "Australia": {
+            "obligation_type_accuracy": 0.0,
+            "scope_accuracy": 0.0,
+            "n": 3
+          },
+          "Malaysia": {
+            "obligation_type_accuracy": 0.2,
+            "scope_accuracy": 0.0,
+            "n": 5
+          },
+          "China": {
+            "obligation_type_accuracy": 0.6666666666666666,
+            "scope_accuracy": 0.0,
+            "n": 3
+          },
+          "Thailand": {
+            "obligation_type_accuracy": 0.75,
+            "scope_accuracy": 0.0,
+            "n": 4
+          },
+          "Mongolia": {
+            "obligation_type_accuracy": 0.5,
+            "scope_accuracy": 0.0,
+            "n": 2
+          },
+          "Indonesia": {
+            "obligation_type_accuracy": 0.6666666666666666,
+            "scope_accuracy": 0.0,
+            "n": 3
+          },
+          "Singapore": {
+            "obligation_type_accuracy": 0.0,
+            "scope_accuracy": 0.0,
+            "n": 4
+          },
+          "Lao PDR": {
+            "obligation_type_accuracy": 1.0,
+            "scope_accuracy": 0.0,
+            "n": 2
+          }
+        }
+      },
+      "tag_generator": {
+        "precision": 0.14285714285714285,
+        "recall": 0.21875,
+        "f1": 0.1728395061728395,
+        "true_positives": 7,
+        "false_positives": 42,
+        "false_negatives": 25,
+        "n": 32,
+        "by_jurisdiction": {
+          "India": {
+            "precision": 0.14285714285714285,
+            "recall": 0.25,
+            "f1": 0.18181818181818182,
+            "n": 4
+          },
+          "Russian Federation": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n": 2
+          },
+          "Australia": {
+            "precision": 0.2,
+            "recall": 0.3333333333333333,
+            "f1": 0.25,
+            "n": 3
+          },
+          "Malaysia": {
+            "precision": 0.14285714285714285,
+            "recall": 0.2,
+            "f1": 0.16666666666666666,
+            "n": 5
+          },
+          "China": {
+            "precision": 0.25,
+            "recall": 0.3333333333333333,
+            "f1": 0.28571428571428575,
+            "n": 3
+          },
+          "Thailand": {
+            "precision": 0.14285714285714285,
+            "recall": 0.25,
+            "f1": 0.18181818181818182,
+            "n": 4
+          },
+          "Mongolia": {
+            "precision": 0.3333333333333333,
+            "recall": 0.5,
+            "f1": 0.4,
+            "n": 2
+          },
+          "Indonesia": {
+            "precision": 0.16666666666666666,
+            "recall": 0.3333333333333333,
+            "f1": 0.2222222222222222,
+            "n": 3
+          },
+          "Singapore": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n": 4
+          },
+          "Lao PDR": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n": 2
+          }
+        }
+      },
+      "duration_sec": 136.08588067998062,
+      "models_used": {
+        "law_interpreter": "llama3.1:latest",
+        "tag_generator": "llama3.1:latest"
+      }
+    },
+    {
+      "mode": "few_shot",
+      "law_interpreter": {
+        "obligation_type_accuracy": 0.75,
+        "scope_accuracy": 0.96875,
+        "n": 32,
+        "obligation_type_correct": 24,
+        "scope_correct": 31,
+        "by_jurisdiction": {
+          "India": {
+            "obligation_type_accuracy": 0.75,
+            "scope_accuracy": 1.0,
+            "n": 4
+          },
+          "Russian Federation": {
+            "obligation_type_accuracy": 1.0,
+            "scope_accuracy": 1.0,
+            "n": 2
+          },
+          "Australia": {
+            "obligation_type_accuracy": 0.6666666666666666,
+            "scope_accuracy": 1.0,
+            "n": 3
+          },
+          "Malaysia": {
+            "obligation_type_accuracy": 0.8,
+            "scope_accuracy": 0.8,
+            "n": 5
+          },
+          "China": {
+            "obligation_type_accuracy": 0.6666666666666666,
+            "scope_accuracy": 1.0,
+            "n": 3
+          },
+          "Thailand": {
+            "obligation_type_accuracy": 0.75,
+            "scope_accuracy": 1.0,
+            "n": 4
+          },
+          "Mongolia": {
+            "obligation_type_accuracy": 0.5,
+            "scope_accuracy": 1.0,
+            "n": 2
+          },
+          "Indonesia": {
+            "obligation_type_accuracy": 0.6666666666666666,
+            "scope_accuracy": 1.0,
+            "n": 3
+          },
+          "Singapore": {
+            "obligation_type_accuracy": 0.75,
+            "scope_accuracy": 1.0,
+            "n": 4
+          },
+          "Lao PDR": {
+            "obligation_type_accuracy": 1.0,
+            "scope_accuracy": 1.0,
+            "n": 2
+          }
+        }
+      },
+      "tag_generator": {
+        "precision": 0.4375,
+        "recall": 0.4375,
+        "f1": 0.4375,
+        "true_positives": 14,
+        "false_positives": 18,
+        "false_negatives": 18,
+        "n": 32,
+        "by_jurisdiction": {
+          "India": {
+            "precision": 0.75,
+            "recall": 0.75,
+            "f1": 0.75,
+            "n": 4
+          },
+          "Russian Federation": {
+            "precision": 0.5,
+            "recall": 0.5,
+            "f1": 0.5,
+            "n": 2
+          },
+          "Australia": {
+            "precision": 0.3333333333333333,
+            "recall": 0.3333333333333333,
+            "f1": 0.3333333333333333,
+            "n": 3
+          },
+          "Malaysia": {
+            "precision": 0.2,
+            "recall": 0.2,
+            "f1": 0.20000000000000004,
+            "n": 5
+          },
+          "China": {
+            "precision": 0.6666666666666666,
+            "recall": 0.6666666666666666,
+            "f1": 0.6666666666666666,
+            "n": 3
+          },
+          "Thailand": {
+            "precision": 0.25,
+            "recall": 0.25,
+            "f1": 0.25,
+            "n": 4
+          },
+          "Mongolia": {
+            "precision": 0.5,
+            "recall": 0.5,
+            "f1": 0.5,
+            "n": 2
+          },
+          "Indonesia": {
+            "precision": 0.3333333333333333,
+            "recall": 0.3333333333333333,
+            "f1": 0.3333333333333333,
+            "n": 3
+          },
+          "Singapore": {
+            "precision": 0.75,
+            "recall": 0.75,
+            "f1": 0.75,
+            "n": 4
+          },
+          "Lao PDR": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n": 2
+          }
+        }
+      },
+      "duration_sec": 209.9535487999965,
+      "models_used": {
+        "law_interpreter": "llama3.1:latest",
+        "tag_generator": "llama3.1:latest",
+        "set_trie": "{\"trie_hits\": 0, \"trie_misses\": 0, \"llm_fallbacks\": 0, \"hit_rate\": 0.0}"
+      }
+    },
+    {
+      "mode": "system_prompt_baseline",
+      "law_interpreter": {
+        "obligation_type_accuracy": 0.46875,
+        "scope_accuracy": 0.03125,
+        "n": 32,
+        "obligation_type_correct": 15,
+        "scope_correct": 1,
+        "by_jurisdiction": {
+          "India": {
+            "obligation_type_accuracy": 0.5,
+            "scope_accuracy": 0.25,
+            "n": 4
+          },
+          "Russian Federation": {
+            "obligation_type_accuracy": 1.0,
+            "scope_accuracy": 0.0,
+            "n": 2
+          },
+          "Australia": {
+            "obligation_type_accuracy": 0.0,
+            "scope_accuracy": 0.0,
+            "n": 3
+          },
+          "Malaysia": {
+            "obligation_type_accuracy": 0.2,
+            "scope_accuracy": 0.0,
+            "n": 5
+          },
+          "China": {
+            "obligation_type_accuracy": 0.6666666666666666,
+            "scope_accuracy": 0.0,
+            "n": 3
+          },
+          "Thailand": {
+            "obligation_type_accuracy": 0.75,
+            "scope_accuracy": 0.0,
+            "n": 4
+          },
+          "Mongolia": {
+            "obligation_type_accuracy": 0.5,
+            "scope_accuracy": 0.0,
+            "n": 2
+          },
+          "Indonesia": {
+            "obligation_type_accuracy": 0.6666666666666666,
+            "scope_accuracy": 0.0,
+            "n": 3
+          },
+          "Singapore": {
+            "obligation_type_accuracy": 0.0,
+            "scope_accuracy": 0.0,
+            "n": 4
+          },
+          "Lao PDR": {
+            "obligation_type_accuracy": 1.0,
+            "scope_accuracy": 0.0,
+            "n": 2
+          }
+        }
+      },
+      "tag_generator": {
+        "precision": 0.1956521739130435,
+        "recall": 0.28125,
+        "f1": 0.23076923076923078,
+        "true_positives": 9,
+        "false_positives": 37,
+        "false_negatives": 23,
+        "n": 32,
+        "by_jurisdiction": {
+          "India": {
+            "precision": 0.14285714285714285,
+            "recall": 0.25,
+            "f1": 0.18181818181818182,
+            "n": 4
+          },
+          "Russian Federation": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n": 2
+          },
+          "Australia": {
+            "precision": 0.25,
+            "recall": 0.3333333333333333,
+            "f1": 0.28571428571428575,
+            "n": 3
+          },
+          "Malaysia": {
+            "precision": 0.16666666666666666,
+            "recall": 0.2,
+            "f1": 0.1818181818181818,
+            "n": 5
+          },
+          "China": {
+            "precision": 0.25,
+            "recall": 0.3333333333333333,
+            "f1": 0.28571428571428575,
+            "n": 3
+          },
+          "Thailand": {
+            "precision": 0.14285714285714285,
+            "recall": 0.25,
+            "f1": 0.18181818181818182,
+            "n": 4
+          },
+          "Mongolia": {
+            "precision": 0.6666666666666666,
+            "recall": 1.0,
+            "f1": 0.8,
+            "n": 2
+          },
+          "Indonesia": {
+            "precision": 0.3333333333333333,
+            "recall": 0.6666666666666666,
+            "f1": 0.4444444444444444,
+            "n": 3
+          },
+          "Singapore": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n": 4
+          },
+          "Lao PDR": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "n": 2
+          }
+        }
+      },
+      "duration_sec": 136.64058251000824,
+      "models_used": {
+        "law_interpreter": "zetarix-law-interpreter:latest",
+        "tag_generator": "zetarix-tag-generator:latest"
+      }
+    }
+  ],
+  "notes": "Metrics computed on held-out test split (stratified 80/10/10).\nLaw Interpreter: obligation-type + scope classification accuracy.\nTag Generator: micro-averaged precision/recall/F1 over indicator tags per finding.\nSystem-prompt baseline slot uses Ollama Modelfile-specialized adapters (zetarix-law-interpreter:latest) \u2014 NOT true QLoRA weights. Replace with QLoRA GGUF when adapters are trained.",
+  "test_counts": {
+    "law_interpreter": 32,
+    "tag_generator": 32
+  },
+  "verdict": "Few-shot/RAG vs zero-shot: Tag Generator F1 delta = +0.265 (0.438 vs 0.173). System-prompt baseline does NOT beat few-shot/RAG by a meaningful margin (delta F1=-0.207). Prefer the RAG-grounded baseline. Law Interpreter obligation accuracy: few-shot 0.750 vs zero-shot 0.469 (delta +0.281)."
+}

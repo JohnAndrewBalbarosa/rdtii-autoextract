@@ -1,0 +1,40 @@
+=== Training dataset counts ===
+Law Interpreter total: 284
+Tag Generator total:   284
+Positives: 283  Negatives (hard): 1
+
+Law Interpreter by jurisdiction:
+  Australia: 20
+  China: 31
+  India: 43
+  Indonesia: 34
+  Lao PDR: 13
+  Malaysia: 48
+  Mongolia: 11
+  Russian Federation: 16
+  Singapore: 38
+  Thailand: 30
+
+Tag Generator by jurisdiction:
+  Australia: 20
+  China: 31
+  India: 43
+  Indonesia: 34
+  Lao PDR: 13
+  Malaysia: 48
+  Mongolia: 11
+  Russian Federation: 16
+  Singapore: 38
+  Thailand: 30
+
+By pillar (law_interpreter / tag_generator):
+  Pillar 6: 90 / 90
+  Pillar 7: 194 / 194
+
+Focus jurisdictions (Australia, Singapore, Malaysia):
+  Australia: law_interpreter=20, tag_generator=20
+  Singapore: law_interpreter=38, tag_generator=38
+  Malaysia: law_interpreter=48, tag_generator=48
+
+Global totals (284/284) meet the ~200 per-stage minimum — LoRA is a viable stretch path.
+Focus jurisdictions (SG/AU/MY) have only 20–48 examples each — too small for jurisdiction-specific fine-tunes; few-shot/RAG is primary for Round 1.

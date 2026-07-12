@@ -85,18 +85,28 @@ def parse_and_clean_json(text: str) -> dict:
 class LocalLLMProvider:
     """LLMProvider backed by a local/self-hosted model (Ollama)."""
 
+    _STAGE_PROFILES = frozenset({"law_interpreter", "tag_generator"})
+
     def __init__(self, model: str | None = None, endpoint: str | None = None) -> None:
-        self._model = model or os.environ.get("OLLAMA_MODEL") or "gpt-oss:20b"
+        self._default_model = model or os.environ.get("OLLAMA_MODEL") or "llama3.1:latest"
         self._endpoint = endpoint or os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
 
+    def _model_for(self, agent_profile: str) -> str:
+        if agent_profile in self._STAGE_PROFILES:
+            from zetarix.pretrain.train.export_ollama import resolve_stage_model
+
+            return resolve_stage_model(agent_profile, self._default_model)  # type: ignore[arg-type]
+        return self._default_model
+
     def complete(self, prompt: str, schema: dict, agent_profile: str = "main_controller") -> dict:
+        model = self._model_for(agent_profile)
         headers = {
             "Content-Type": "application/json",
         }
         augmented_prompt = prepare_prompt(prompt, schema)
         
         payload = {
-            "model": self._model,
+            "model": model,
             "messages": [
                 {"role": "user", "content": augmented_prompt}
             ],
@@ -128,7 +138,7 @@ class LocalLLMProvider:
             err_content = e.read().decode("utf-8")
             if e.code == 404:
                 raise NotImplementedError(
-                    f"LocalLLMProvider: Model '{self._model}' is not pulled in Ollama. "
+                    f"LocalLLMProvider: Model '{model}' is not pulled in Ollama. "
                     f"Details: {err_content}"
                 )
             raise RuntimeError(f"Ollama call failed with HTTP error: {e.code} {e.reason} - {err_content}")

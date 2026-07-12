@@ -404,3 +404,72 @@ def build_content_tagging_prompt(content: str, allowed_tags: list[str]) -> str:
         EXTRACTED_CONTENT_END
         """
     ).strip()
+
+
+def build_law_interpreter_prompt(
+    *,
+    tagged_provision_input: str,
+    jurisdiction: str,
+    pillar: int,
+) -> str:
+    """Zero-shot Law Interpreter prompt (no exemplars)."""
+
+    return dedent(
+        f"""
+        You are the RDTII Law Interpreter. Given a tagged legal provision, classify the
+        obligation and return JSON only.
+
+        Classify:
+        - obligation_type: prohibition | requirement | permission | accountability | assessment | other
+        - scope: who/what the obligation applies to
+        - applicability_triggers: list of conditions that activate the obligation
+        - plain_summary: one-sentence plain-language summary of the legal effect
+
+        Hard rules:
+        - Return JSON only. No markdown fences or commentary.
+        - Do not invent article numbers or citations not present in the input.
+        - Base scope and triggers on the input text only.
+
+        Jurisdiction: {jurisdiction}
+        Pillar: {pillar}
+
+        TAGGED_PROVISION_START
+        {tagged_provision_input}
+        TAGGED_PROVISION_END
+        """
+    ).strip()
+
+
+def build_tag_generator_prompt(
+    *,
+    legal_interpretation: str,
+    jurisdiction: str,
+    pillar: int,
+    precedent_tags: list[str] | None = None,
+) -> str:
+    """Zero-shot Tag Generator prompt (no exemplars)."""
+
+    tags_hint = ", ".join(precedent_tags or []) or "(none)"
+    return dedent(
+        f"""
+        You are the RDTII Law-Aware Tag Generator. Map the legal interpretation to one or
+        more RDTII indicator tags and return JSON only.
+
+        Output:
+        - indicator_tags: list of golden-DB indicator ids (e.g. "6.2", "7.1") for Pillar {pillar}
+        - rationale: brief justification (≤300 chars) for the mapping
+
+        Hard rules:
+        - Return JSON only. No markdown fences or commentary.
+        - Use only indicators plausible for Pillar {pillar}.
+        - If the interpretation does not support any indicator, return an empty indicator_tags list.
+
+        Jurisdiction: {jurisdiction}
+        Pillar: {pillar}
+        Precedent tags: {tags_hint}
+
+        LEGAL_INTERPRETATION_START
+        {legal_interpretation}
+        LEGAL_INTERPRETATION_END
+        """
+    ).strip()

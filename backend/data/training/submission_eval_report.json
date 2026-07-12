@@ -1,0 +1,342 @@
+{
+  "matched_pairs": 26,
+  "discovery_precision": 0.3880597014925373,
+  "discovery_recall": 0.5416666666666666,
+  "discovery_f1": 0.45217391304347826,
+  "mandatory_field_accuracy": {
+    "title": 0.0,
+    "last_update": 0.07692307692307693,
+    "url": 1.0,
+    "scope": 0.0,
+    "provisions": 0.0,
+    "impact": 0.0
+  },
+  "mean_mandatory_field_accuracy": 0.1794871794871795,
+  "per_jurisdiction": [
+    {
+      "country": "Australia",
+      "pillar": 6,
+      "findings_count": 3,
+      "gold_count": 4,
+      "matched_pairs": 2,
+      "field_scores": [
+        {
+          "field": "title",
+          "correct": 0,
+          "total": 2
+        },
+        {
+          "field": "last_update",
+          "correct": 0,
+          "total": 2
+        },
+        {
+          "field": "url",
+          "correct": 2,
+          "total": 2
+        },
+        {
+          "field": "scope",
+          "correct": 0,
+          "total": 2
+        },
+        {
+          "field": "provisions",
+          "correct": 0,
+          "total": 2
+        },
+        {
+          "field": "impact",
+          "correct": 0,
+          "total": 2
+        },
+        {
+          "field": "indicator",
+          "correct": 0,
+          "total": 2
+        }
+      ],
+      "discovery_precision": 0.6666666666666666,
+      "discovery_recall": 0.5,
+      "discovery_f1": 0.5714285714285715
+    },
+    {
+      "country": "Australia",
+      "pillar": 7,
+      "findings_count": 11,
+      "gold_count": 7,
+      "matched_pairs": 5,
+      "field_scores": [
+        {
+          "field": "title",
+          "correct": 0,
+          "total": 5
+        },
+        {
+          "field": "last_update",
+          "correct": 0,
+          "total": 5
+        },
+        {
+          "field": "url",
+          "correct": 5,
+          "total": 5
+        },
+        {
+          "field": "scope",
+          "correct": 0,
+          "total": 5
+        },
+        {
+          "field": "provisions",
+          "correct": 0,
+          "total": 5
+        },
+        {
+          "field": "impact",
+          "correct": 0,
+          "total": 5
+        },
+        {
+          "field": "indicator",
+          "correct": 0,
+          "total": 5
+        }
+      ],
+      "discovery_precision": 0.45454545454545453,
+      "discovery_recall": 0.7142857142857143,
+      "discovery_f1": 0.5555555555555556
+    },
+    {
+      "country": "Singapore",
+      "pillar": 6,
+      "findings_count": 1,
+      "gold_count": 4,
+      "matched_pairs": 1,
+      "field_scores": [
+        {
+          "field": "title",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "last_update",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "url",
+          "correct": 1,
+          "total": 1
+        },
+        {
+          "field": "scope",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "provisions",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "impact",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "indicator",
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "discovery_precision": 1.0,
+      "discovery_recall": 0.25,
+      "discovery_f1": 0.4
+    },
+    {
+      "country": "Singapore",
+      "pillar": 7,
+      "findings_count": 26,
+      "gold_count": 9,
+      "matched_pairs": 6,
+      "field_scores": [
+        {
+          "field": "title",
+          "correct": 0,
+          "total": 6
+        },
+        {
+          "field": "last_update",
+          "correct": 1,
+          "total": 6
+        },
+        {
+          "field": "url",
+          "correct": 6,
+          "total": 6
+        },
+        {
+          "field": "scope",
+          "correct": 0,
+          "total": 6
+        },
+        {
+          "field": "provisions",
+          "correct": 0,
+          "total": 6
+        },
+        {
+          "field": "impact",
+          "correct": 0,
+          "total": 6
+        },
+        {
+          "field": "indicator",
+          "correct": 1,
+          "total": 6
+        }
+      ],
+      "discovery_precision": 0.23076923076923078,
+      "discovery_recall": 0.6666666666666666,
+      "discovery_f1": 0.3428571428571429
+    },
+    {
+      "country": "Malaysia",
+      "pillar": 6,
+      "findings_count": 2,
+      "gold_count": 10,
+      "matched_pairs": 1,
+      "field_scores": [
+        {
+          "field": "title",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "last_update",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "url",
+          "correct": 1,
+          "total": 1
+        },
+        {
+          "field": "scope",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "provisions",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "impact",
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "field": "indicator",
+          "correct": 1,
+          "total": 1
+        }
+      ],
+      "discovery_precision": 0.5,
+      "discovery_recall": 0.1,
+      "discovery_f1": 0.16666666666666669
+    },
+    {
+      "country": "Malaysia",
+      "pillar": 7,
+      "findings_count": 24,
+      "gold_count": 14,
+      "matched_pairs": 11,
+      "field_scores": [
+        {
+          "field": "title",
+          "correct": 0,
+          "total": 11
+        },
+        {
+          "field": "last_update",
+          "correct": 1,
+          "total": 11
+        },
+        {
+          "field": "url",
+          "correct": 11,
+          "total": 11
+        },
+        {
+          "field": "scope",
+          "correct": 0,
+          "total": 11
+        },
+        {
+          "field": "provisions",
+          "correct": 0,
+          "total": 11
+        },
+        {
+          "field": "impact",
+          "correct": 0,
+          "total": 11
+        },
+        {
+          "field": "indicator",
+          "correct": 4,
+          "total": 11
+        }
+      ],
+      "discovery_precision": 0.4583333333333333,
+      "discovery_recall": 0.7857142857142857,
+      "discovery_f1": 0.5789473684210527
+    }
+  ],
+  "false_positives_sample": [
+    {
+      "country": "Australia",
+      "pillar": 6,
+      "title": "Home",
+      "url": "https://www.legislation.gov.au/C2004A03712",
+      "indicator": "P6-I1",
+      "provisions_excerpt": "n\u00a01\u2014Interferences with privacy13  Interferences with privacy13B  Related bodies corporate13C  Change in partnership beca"
+    },
+    {
+      "country": "Australia",
+      "pillar": 7,
+      "title": "Privacy",
+      "url": "https://www.oaic.gov.au/privacy/notifiable-data-breaches",
+      "indicator": "P7-I2",
+      "provisions_excerpt": "A data breach happens when personal information is accessed or disclosed without authorisation or is lost"
+    },
+    {
+      "country": "Australia",
+      "pillar": 7,
+      "title": "Home",
+      "url": "https://www.legislation.gov.au/C2022A00011/latest/text",
+      "indicator": "P7-I4",
+      "provisions_excerpt": "3\u2014Data breach responsibilities35  Definition of data breach36  Take steps to mitigate data breach37  Interaction with Pa"
+    },
+    {
+      "country": "Australia",
+      "pillar": 7,
+      "title": "Home",
+      "url": "https://www.legislation.gov.au/Details/C2023C00106",
+      "indicator": "P7-I4",
+      "provisions_excerpt": "3\u2014Data breach responsibilities35  Definition of data breach36  Take steps to mitigate data breach37  Interaction with Pa"
+    },
+    {
+      "country": "Australia",
+      "pillar": 7,
+      "title": "Home",
+      "url": "https://www.legislation.gov.au/C2004A05145",
+      "indicator": "P7-I1",
+      "provisions_excerpt": "rgency warnings286  Calls to emergency service number287  Threat to person\u2019s life or health288  Communications for marit"
+    }
+  ],
+  "eval_fix_notes": "provisions previously scored len>=20 only (false positive 92%); now requires token similarity vs gold.impact"
+}

@@ -22,11 +22,17 @@ dist/
 *.log
 data/raw/
 data/cache/
+data/training/formatted/
 .DS_Store
 
 # Scratch run outputs — live results go under out/ (ignored); never commit big cluster dumps
 out_live/
 out_live2/
+
+# Training artifacts (regenerate via build_dataset / finetune)
+data/training/adapters/
+data/training/formatted/
+.venv-train/
 
 # Editors
 .vscode/

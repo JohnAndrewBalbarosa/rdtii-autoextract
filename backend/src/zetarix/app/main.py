@@ -8,12 +8,24 @@ touches only this package, never core/.
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from zetarix.pretrain.api.routes import router as training_router
 
 app = FastAPI(
     title="RDTII Trade Regulatory Analysis Engine",
     version="0.1.0",
     description="Automates ~80% of the ESCAP RDTII workflow: search -> retrieve -> describe.",
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:3000", "http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(training_router)
 
 
 @app.get("/health")

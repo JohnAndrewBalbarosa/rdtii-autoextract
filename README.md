@@ -52,6 +52,12 @@ npm run dev
 - At 100 pages, the saved model reports 773.6x fewer application LLM tokens than a naive raw-HTML-per-page agent baseline on `inspect_au`; this multiplier is baseline-dependent, not a provider-billing measurement.
 - Deterministic quality checks reported 100.0% fingerprint stability across seven noise variants per fixture and no detected boilerplate contamination.
 - Measured extraction accuracy, reviewer agreement, latency, and jurisdiction-level coverage are not yet published in the README.
+- **Law Interpreter / Tag Generator eval** (held-out test n=27, `llama3.1:latest` via Ollama, `backend/data/training/eval_report.md`):
+  - Zero-shot Tag Generator: P=0.154, R=0.222, F1=**0.182**
+  - Few-shot/RAG Tag Generator: P=0.407, R=0.407, F1=**0.407** (+0.226 vs zero-shot)
+  - Fine-tuned* Tag Generator: P=0.184, R=0.259, F1=0.215 (does not beat few-shot)
+  - Law Interpreter scope accuracy: 0.074 zero-shot → **0.889** few-shot/RAG
+- Training dataset: 225 labeled examples per stage from golden workbooks; SG/AU/MY have 11–24 each (few-shot/RAG recommended over LoRA until more reviewer labels).
 
 ## Interpretation
 

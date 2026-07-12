@@ -1,0 +1,32 @@
+[
+  {
+    "id": "th-pdpa-37",
+    "reviewStatus": "verified",
+    "jurisdiction": "Thailand",
+    "pillar": 7,
+    "title": "Security Measures of Data Controller",
+    "scope": "Applies to data controllers processing personal data within Thailand.",
+    "provisions": "The data controller shall provide appropriate security measures to prevent unauthorised or unlawful loss, access, use, alteration, or disclosure of personal data.",
+    "impact": "Sets a baseline domestic data-security standard for controllers.",
+    "indicator": "7.1",
+    "indicatorLabel": "Security obligations",
+    "documentTitle": "Personal Data Protection Act B.E. 2562 (2019)",
+    "articleNumber": "Section 37",
+    "language": "th"
+  },
+  {
+    "id": "my-pdpa-129",
+    "reviewStatus": "rejected",
+    "jurisdiction": "Malaysia",
+    "pillar": 6,
+    "title": "Transfer of Personal Data Outside Malaysia",
+    "scope": "Applies to data users transferring personal data to a place outside Malaysia.",
+    "provisions": "A data user shall not transfer personal data to a place outside Malaysia unless to a place specified by the Minister, or where prescribed safeguards apply.",
+    "impact": "Adequacy-list-based cross-border regime with ministerial discretion.",
+    "indicator": "6.1",
+    "indicatorLabel": "Restriction on cross-border transfer",
+    "documentTitle": "Personal Data Protection Act 2010",
+    "articleNumber": "Section 129",
+    "language": "en"
+  }
+]

@@ -1,0 +1,52 @@
+# Self-hosted stack referenced in backend/docs/ARCHITECTURE.md
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: zetarix
+      POSTGRES_PASSWORD: zetarix
+      POSTGRES_DB: zetarix
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zetarix"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      ZETARIX_GROUNDING: few_shot
+      ZETARIX_LLM_BACKEND: local
+      OLLAMA_MODEL: llama3.1:latest
+      OLLAMA_HOST: http://host.docker.internal:11434
+      DATABASE_URL: postgresql://zetarix:zetarix@postgres:5432/zetarix
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data
+      - ./docs:/app/docs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

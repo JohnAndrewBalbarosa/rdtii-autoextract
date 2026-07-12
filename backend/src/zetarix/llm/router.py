@@ -13,7 +13,7 @@ import os
 from zetarix.ports import LLMProvider
 
 _ENV_BACKEND = "ZETARIX_LLM_BACKEND"
-_DEFAULT_BACKEND = "remote"
+_DEFAULT_BACKEND = "local"
 
 
 class LLMRouter:

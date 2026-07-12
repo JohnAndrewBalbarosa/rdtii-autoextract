@@ -144,12 +144,32 @@ def _with_tag(finding: Finding, tag: DiscoveryTag) -> Finding:
 
 
 def _default_extractor():
-    """Default live ``ProvisionExtractor``: the deterministic mock reference adapter.
+    """Default live ``ProvisionExtractor``.
 
-    The mock proves the crawl→extract→tag→emit plumbing offline and emits REAL verbatim
-    snippets. A real LLM extractor swaps in via the same port (``--source live`` plus a
-    custom ``extractor=`` injection) with no other code change.
+    Uses the few-shot/RAG-grounded LLM path when ``ZETARIX_GROUNDING=few_shot`` (default)
+    and training splits exist; otherwise falls back to the deterministic mock adapter.
     """
+    import os
+    from pathlib import Path
+
+    grounding = os.environ.get("ZETARIX_GROUNDING", "few_shot")
+    os.environ.setdefault("ZETARIX_LLM_BACKEND", "local")
+    splits_default = Path(__file__).resolve().parent / "data" / "training" / "splits"
+    os.environ.setdefault("ZETARIX_TRAINING_SPLITS", str(splits_default))
+    if grounding == "few_shot":
+        try:
+            from zetarix.extraction.llm_provision_extractor import LLMProvisionExtractor
+            from zetarix.llm.router import LLMRouter
+            from zetarix.inference.grounding import load_retriever
+
+            if load_retriever() is not None:
+                return LLMProvisionExtractor(LLMRouter.from_env())
+        except Exception as exc:
+            import logging
+            logging.getLogger("zetarix.run").warning(
+                "LLMProvisionExtractor unavailable (%s); falling back to mock", exc
+            )
+
     from zetarix.extraction.mock_provision_extractor import MockProvisionExtractor
 
     return MockProvisionExtractor()
