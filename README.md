@@ -8,41 +8,31 @@ Repository: [JohnAndrewBalbarosa/rdtii-autoextract](https://github.com/JohnAndre
 
 ## Problem and Goal
 
-This project should be read as a technical build: it identifies a concrete workflow or research problem, implements a working system around that problem, and documents enough evidence for another person to understand, run, and evaluate the result.
+**Problem.** UN ESCAP researchers and ministry analysts must discover, retrieve, read, and map scattered digital-trade regulations into article-level RDTII findings. The manual workflow is slow, difficult to audit, and vulnerable to inaccessible portals, scanned PDFs, and inconsistent document structure.
 
-Primary goals:
-
-- Explain what the project does and who it is for.
-- Show the architecture and implementation choices.
-- Provide enough setup guidance for local review.
-- Report measured results when available.
-- Make limitations and next steps explicit instead of implying unverified impact.
+**Goal.** Automate the discover-to-describe stages for RDTII Pillars 6 and 7, emit citation-backed CSV/JSON findings, and keep final verification as an explicit human-review step.
 
 ## System Design
 
-Current documented components:
-
-- Frontend application or user interface layer.
-- Backend service, API, or domain layer.
-- Documentation folder for architecture, requirements, or supporting notes.
-
-Project tags:
-
-- To be tagged based on the final project stack.
+- `frontend/`: Next.js + React reviewer/audit interface.
+- `backend/src/zetarix/`: domain entities, ports, retrieval, crawling, extraction, scoring, validation, and output orchestration.
+- `backend/benchmarks/`: saved HTML fixtures, token-path measurements, layout-cache checks, and quality metrics.
+- Ports-and-adapters boundaries keep LLM, crawler, OCR/PDF, and storage choices replaceable.
 
 ## Setup and Usage
 
-Use the commands below as the starting point for local setup. Verify environment variables, secrets, datasets, and external services before running production-like workflows.
-
 ```bash
-cd frontend
-npm install
-npm run dev
-cd ..
 cd backend
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+playwright install chromium
+python run.py --country SG --pillar 6 --source gold
+
+# Reviewer UI
+cd ../frontend
+npm install
+npm run dev
 ```
 
 ## Evaluation Method
