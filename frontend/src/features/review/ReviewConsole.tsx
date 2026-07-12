@@ -44,7 +44,7 @@ export function ReviewConsole({ initialFindings }: { initialFindings: Finding[] 
         <span>
           Showing {visible.length} of {findings.length} findings
         </span>
-        <span className="console__note">Mock adapter — swap via src/data/index.ts.</span>
+        <span className="console__note">Review decisions update the backend training log.</span>
       </footer>
     </main>
   );

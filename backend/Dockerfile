@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src ./src
 COPY data ./data
+COPY run.py .
 
 ENV PYTHONPATH=/app/src
 ENV ZETARIX_GROUNDING=few_shot

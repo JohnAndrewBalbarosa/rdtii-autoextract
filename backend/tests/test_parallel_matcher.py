@@ -223,11 +223,14 @@ def test_process_mode_or_skip(
         pytest.skip("SetTrieIndex is not picklable on this platform; process mode falls back to threads.")
 
     matcher = ParallelMatcher(shared_index)
-    result = matcher.match_all(
-        eighty_docs,
-        max_workers=2,
-        mode="process",
-        predicate="subset",
-    )
+    try:
+        result = matcher.match_all(
+            eighty_docs,
+            max_workers=2,
+            mode="process",
+            predicate="subset",
+        )
+    except PermissionError as exc:
+        pytest.skip(f"process forkserver is not permitted in this environment: {exc}")
     sequential = _sequential_match(shared_index, eighty_docs, "subset")
     assert result == sequential

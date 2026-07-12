@@ -30,9 +30,12 @@ from zetarix.transport.http_client import HttpClient, _DEFAULT_HEADERS
 # ---------------------------------------------------------------------------
 
 def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
-        return s.getsockname()[1]
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("", 0))
+            return s.getsockname()[1]
+    except PermissionError as exc:
+        pytest.skip(f"local sockets are not permitted in this environment: {exc}")
 
 
 class _FakeClock:

@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from zetarix.app.pipeline_routes import router as pipeline_router
 from zetarix.pretrain.api.routes import router as training_router
 
 app = FastAPI(
@@ -26,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(training_router)
+app.include_router(pipeline_router)
 
 
 @app.get("/health")
@@ -34,5 +36,4 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-# Pipeline routes (discover -> retrieve -> ocr -> chunk -> extract -> map -> review)
-# are wired here per sprint, delegating to core/pipeline use-cases with injected adapters.
+# Pipeline routes delegate to the same reviewer-contract pipeline used by the CLI.

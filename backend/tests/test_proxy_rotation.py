@@ -26,9 +26,12 @@ class MockTargetHandler(BaseHTTPRequestHandler):
         pass
 
 def get_free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
-        return s.getsockname()[1]
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("", 0))
+            return s.getsockname()[1]
+    except PermissionError as exc:
+        pytest.skip(f"local sockets are not permitted in this environment: {exc}")
 
 def test_proxy_config_session_resolution():
     # 1. Test basic parsing without auth or sessions
@@ -134,4 +137,3 @@ def test_free_proxy_list_integration(monkeypatch):
     assert config.get_active_proxy_url() == "http://192.168.1.100:80"
     assert config.get_active_proxy_url() == "http://192.168.1.101:8080"
     assert config.get_active_proxy_url() == "http://192.168.1.100:80"  # Wrapped around
-

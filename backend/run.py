@@ -27,6 +27,8 @@ import os
 import re
 import sys
 import time
+import urllib.error
+import urllib.request
 from datetime import date
 
 # Make `from core...` / `from adapters...` resolve when run as a plain script from any cwd.
@@ -156,7 +158,7 @@ def _default_extractor():
     os.environ.setdefault("ZETARIX_LLM_BACKEND", "local")
     splits_default = Path(__file__).resolve().parent / "data" / "training" / "splits"
     os.environ.setdefault("ZETARIX_TRAINING_SPLITS", str(splits_default))
-    if grounding == "few_shot":
+    if grounding == "few_shot" and _llm_backend_available():
         try:
             from zetarix.extraction.llm_provision_extractor import LLMProvisionExtractor
             from zetarix.llm.router import LLMRouter
@@ -173,6 +175,35 @@ def _default_extractor():
     from zetarix.extraction.mock_provision_extractor import MockProvisionExtractor
 
     return MockProvisionExtractor()
+
+
+def _llm_backend_available() -> bool:
+    """Return True only when the configured extraction LLM is actually callable.
+
+    Training splits alone are not enough to choose the LLM extractor: offline demos and
+    tests must stay deterministic when no model server is running. Remote backends are
+    considered available when a supported API key is configured; local/hybrid extraction
+    requires a live Ollama API because extraction profiles route to the local provider.
+    """
+    backend = os.environ.get("ZETARIX_LLM_BACKEND", "local").lower()
+    if backend == "remote":
+        return bool(
+            os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("ANTHROPIC_API_KEY")
+            or os.environ.get("CLAUDE_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+        )
+
+    if backend not in {"local", "hybrid"}:
+        return False
+
+    endpoint = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    req = urllib.request.Request(f"{endpoint}/api/tags", method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=1.5) as response:
+            return 200 <= response.status < 500
+    except (OSError, urllib.error.URLError, TimeoutError):
+        return False
 
 
 def _default_fetcher():
