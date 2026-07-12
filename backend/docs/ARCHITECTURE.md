@@ -331,12 +331,17 @@ GET    /metrics                    Operational metrics
 
 Current implemented bridge:
 
+- `POST /runs`
+- `GET /runs`
+- `GET /runs/{run_id}`
+- `GET /runs/{run_id}/findings`
+- `POST /runs/{run_id}/cancel`
 - `GET /findings`
 - `POST /pipeline/extract`
 - `/training/*`
 - `/health`
 
-The current bridge returns reviewer-ready findings using the shared pipeline service and should evolve into persisted run-based APIs.
+The current bridge returns reviewer-ready findings using the shared pipeline service and persists synchronous run records through a replaceable JSON repository. This should evolve into Temporal-backed workflows and PostgreSQL persistence.
 
 ## 11. Reviewer Console
 
