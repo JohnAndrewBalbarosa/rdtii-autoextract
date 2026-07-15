@@ -22,11 +22,13 @@ Run as a script (``python run.py ...``) or import ``main(argv)`` for testing.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
 import os
 import re
 import sys
 import time
+import urllib.parse
 from datetime import date
 
 # Make `from core...` / `from adapters...` resolve when run as a plain script from any cwd.
@@ -44,6 +46,8 @@ from zetarix.orchestration.output_emitter import write_csv, write_json  # noqa: 
 from zetarix.scoring.scoring import discovery_diff, finding_to_match_item  # noqa: E402
 
 MODEL_VERSION = "zetarix-round1-gold-1.0"
+_LIVE_CRAWL_MAX_PAGES = 6
+_LIVE_DISCOVERED_DOCS_PER_SEED = 4
 
 # Reviewer may pass an ISO-ish code, an alias, or the full name (any case). Map → the
 # canonical country name used as the sheet name in the golden workbooks.
@@ -59,6 +63,36 @@ _COUNTRY_ALIASES: dict[str, str] = {
 }
 
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
+_NON_LEGAL_TITLE_RE = re.compile(
+    r"\b("
+    r"contact us|privacy statement|terms and conditions|overview|home|homepage|"
+    r"about us|feedback|faq|news|announcement|media release|portal"
+    r")\b",
+    re.IGNORECASE,
+)
+_LEGAL_TITLE_RE = re.compile(
+    r"\b("
+    r"act|regulation|regulations|ordinance|statute|code|law|laws|legislation|gazette|"
+    r"privacy principle|order"
+    r")\b",
+    re.IGNORECASE,
+)
+_LEGAL_PROVISION_RE = re.compile(
+    r"\b("
+    r"section|article|part|division|schedule|shall|must|must not|shall not|may not|"
+    r"disclose|transfer|retain|collect|consent|overseas recipient|foreign law|"
+    r"app entity|privacy principle|applicable law"
+    r")\b",
+    re.IGNORECASE,
+)
+_BARE_LEGAL_SECTION_RE = re.compile(r"\b\d+[A-Za-z]{0,2}\b")
+_NON_LEGAL_URL_RE = re.compile(
+    r"(?:^|[/_.?=&-])("
+    r"contact(?:-us)?|privacy-statement|terms(?:-and-conditions)?|overview|home|"
+    r"feedback|faq|news|announcements?|media|events|press|copyright"
+    r")(?:$|[/_.?=&-])",
+    re.IGNORECASE,
+)
 
 
 def resolve_country(raw: str) -> str | None:
@@ -150,20 +184,32 @@ def _default_extractor():
     snippets. A real LLM extractor swaps in via the same port (``--source live`` plus a
     custom ``extractor=`` injection) with no other code change.
     """
-    from zetarix.extraction.mock_provision_extractor import MockProvisionExtractor
+    from zetarix.extraction.rule_based_provision_extractor import RuleBasedProvisionExtractor
+    if os.environ.get("ZETARIX_ENABLE_REVIEWER_LLM", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        return RuleBasedProvisionExtractor()
+    try:
+        from zetarix.llm.router import LLMRouter
 
-    return MockProvisionExtractor()
+        return RuleBasedProvisionExtractor(llm_provider=LLMRouter.from_env())
+    except Exception:
+        return RuleBasedProvisionExtractor()
 
 
 def _default_fetcher():
-    """Default live fetcher: the real ``HttpClient`` (an ``HtmlFetcherPort`` with fetch_raw).
+    """Default live fetcher: static HTTP with dynamic-page fallback when available.
 
     Any object exposing ``fetch_raw(url) -> FetchResult`` is acceptable; tests inject a
     fake so the live path runs offline.
     """
+    from zetarix.transport.factory import TransportFactory
     from zetarix.transport.http_client import HttpClient
 
-    return HttpClient()
+    try:
+        from zetarix.transport.playwright_client import PlaywrightClient
+
+        return TransportFactory(HttpClient(), PlaywrightClient())
+    except Exception:
+        return HttpClient()
 
 
 def _seed_urls(country: str, pillar: int, docs_dir: str | None = None) -> list[str]:
@@ -209,6 +255,201 @@ def _crawl_one(url: str, country: str, fetcher, logger) -> CrawledDocument | Non
         return None
 
 
+class _HeuristicOnlyLLM:
+    """Force the adaptive crawler onto its built-in heuristic path."""
+
+    def complete(self, prompt: str, schema: dict, agent_profile: str = "main_controller") -> dict:
+        raise RuntimeError("live pipeline is running in heuristic-only crawler mode")
+
+
+def _page_to_crawled_document(page: dict, country: str) -> CrawledDocument | None:
+    text = (page.get("content") or "").strip()
+    if not text:
+        return None
+    return CrawledDocument(
+        url=page.get("source_url", ""),
+        economy=country,
+        text=text,
+        is_pdf=page.get("document_type") == "pdf",
+    )
+
+
+def _candidate_score(url: str) -> tuple[int, str]:
+    lowered = url.lower()
+    score = 0
+    if any(token in lowered for token in (".pdf", ".doc", ".docx", ".epub", "/text/", "document_")):
+        score += 8
+    if any(token in lowered for token in ("act", "regulation", "law", "privacy", "data", "protection")):
+        score += 4
+    if any(token in lowered for token in ("download", "authorised", "original")):
+        score += 2
+    if any(token in lowered for token in ("interaction", "print", "search", "account", "sign-in")):
+        score -= 4
+    if _NON_LEGAL_URL_RE.search(lowered):
+        score -= 10
+    return (score, lowered)
+
+
+def _is_preferred_live_document(doc: CrawledDocument) -> bool:
+    lowered_url = (doc.url or "").lower()
+    lowered_text = (doc.text or "").lower()
+    if any(token in lowered_url for token in (".pdf", ".doc", ".docx", ".epub", "/text/", "document_")):
+        return True
+    if lowered_text.startswith("skip to main"):
+        return False
+    return doc.is_pdf
+
+
+def _normalized_title(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip()).lower()
+
+
+def _canonical_source_url(url: str) -> str:
+    parsed = urllib.parse.urlsplit(url or "")
+    if not parsed.scheme or not parsed.netloc:
+        return url or ""
+    path = re.sub(r"/{2,}", "/", parsed.path or "/").rstrip("/") or "/"
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    filtered = [
+        (k, v)
+        for k, v in query
+        if k.lower() not in {"utm_source", "utm_medium", "utm_campaign", "ref", "source"}
+    ]
+    query_str = urllib.parse.urlencode(sorted(filtered))
+    return urllib.parse.urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), path, query_str, ""))
+
+
+def _document_score(doc: CrawledDocument) -> int:
+    text = doc.text or ""
+    header = "\n".join(text.splitlines()[:8])
+    score = 0
+    if _LEGAL_TITLE_RE.search(header):
+        score += 5
+    if _LEGAL_PROVISION_RE.search(text[:1500]):
+        score += 5
+    if any(token in (doc.url or "").lower() for token in (".pdf", "/text/", "document_", "legislation", "act")):
+        score += 4
+    if _NON_LEGAL_URL_RE.search((doc.url or "").lower()):
+        score -= 10
+    if _NON_LEGAL_TITLE_RE.search(header):
+        score -= 10
+    return score
+
+
+def _is_real_legal_document(doc: CrawledDocument) -> bool:
+    text = (doc.text or "").strip()
+    if len(text) < 120:
+        return False
+    header = "\n".join(text.splitlines()[:8])
+    if _NON_LEGAL_URL_RE.search((doc.url or "").lower()):
+        return False
+    if _NON_LEGAL_TITLE_RE.search(header):
+        return False
+    if "contact us" in text[:600].lower() or "terms and conditions" in text[:600].lower():
+        return False
+    if "privacy statement" in text[:600].lower():
+        return False
+    if _LEGAL_TITLE_RE.search(header) is None and _LEGAL_PROVISION_RE.search(text[:2000]) is None:
+        return False
+    if (
+        re.search(r"\b(section|article)\b", text[:2500], re.I) is None
+        and _BARE_LEGAL_SECTION_RE.search(text[:500]) is None
+        and doc.is_pdf is False
+    ):
+        return False
+    return _document_score(doc) >= 7
+
+
+def _dedupe_live_documents(documents: list[CrawledDocument]) -> list[CrawledDocument]:
+    deduped: dict[tuple[str, str, str], tuple[int, CrawledDocument]] = {}
+    for doc in documents:
+        if not _is_real_legal_document(doc):
+            continue
+        canonical_url = _canonical_source_url(doc.url)
+        digest = hashlib.sha256(doc.text.encode("utf-8", errors="replace")).hexdigest()[:16]
+        title_line = _normalized_title((doc.text or "").splitlines()[0] if doc.text else "")
+        key = (title_line, digest, canonical_url if any(token in canonical_url for token in (".pdf", "/text/", "document_")) else "")
+        score = _document_score(doc)
+        current = deduped.get(key)
+        if current is None or score > current[0]:
+            deduped[key] = (score, doc)
+    return [item[1] for item in sorted(deduped.values(), key=lambda item: (-item[0], item[1].url))]
+
+
+def _dedupe_live_findings(findings: list[Finding]) -> list[Finding]:
+    best: dict[tuple[str, str, str, str], Finding] = {}
+    for finding in findings:
+        if _NON_LEGAL_URL_RE.search((finding.url or "").lower()):
+            continue
+        if _NON_LEGAL_TITLE_RE.search(finding.title or ""):
+            continue
+        if not finding.article_section.strip() or not finding.verbatim_snippet.strip():
+            continue
+        key = (
+            _normalized_title(finding.title),
+            finding.article_section.strip().lower(),
+            finding.indicator,
+            "",
+        )
+        current = best.get(key)
+        if current is None:
+            best[key] = finding
+            continue
+        current_score = (current.confidence, len(current.verbatim_snippet), len(current.provisions))
+        candidate_score = (finding.confidence, len(finding.verbatim_snippet), len(finding.provisions))
+        if candidate_score > current_score:
+            best[key] = finding
+    return list(best.values())
+
+
+def _crawl_seed_documents(url: str, country: str, fetcher, logger) -> list[CrawledDocument]:
+    from zetarix.crawling.adaptive_crawler import AdaptiveDomainCrawler, CrawlConfig
+
+    crawler = AdaptiveDomainCrawler(
+        fetcher,
+        _HeuristicOnlyLLM(),
+        config=CrawlConfig(max_depth=1, max_pages=_LIVE_CRAWL_MAX_PAGES),
+    )
+
+    pages: list[dict] = []
+    try:
+        seed_page = crawler.scrape_page(url, depth=0, found_on_url=None)
+    except Exception as exc:
+        logger.warning("adaptive scrape failed url=%s (%s); falling back to direct fetch", url, exc)
+        direct = _crawl_one(url, country, fetcher, logger)
+        return [direct] if direct is not None else []
+
+    pages.append(seed_page)
+    candidates = sorted(
+        set(seed_page.get("discovered_links", [])),
+        key=_candidate_score,
+        reverse=True,
+    )
+    for candidate in candidates[:_LIVE_DISCOVERED_DOCS_PER_SEED]:
+        try:
+            pages.append(crawler.scrape_page(candidate, depth=1, found_on_url=url))
+        except Exception as exc:
+            logger.warning("adaptive child scrape failed url=%s (%s); skipping", candidate, exc)
+
+    documents: list[CrawledDocument] = []
+    seen: set[tuple[str, str]] = set()
+    for page in pages:
+        doc = _page_to_crawled_document(page, country)
+        if doc is None:
+            continue
+        digest = hashlib.sha256(doc.text.encode("utf-8", errors="replace")).hexdigest()[:16]
+        key = (doc.url, digest)
+        if key in seen:
+            continue
+        seen.add(key)
+        documents.append(doc)
+    documents = _dedupe_live_documents(documents)
+    preferred = [doc for doc in documents if _is_preferred_live_document(doc)]
+    if preferred:
+        return preferred
+    return documents
+
+
 def _build_live_findings(country, pillar, logger, docs_dir, fetcher, extractor):
     """Real crawl→extract path. Returns a (possibly empty) list of Findings.
 
@@ -222,17 +463,18 @@ def _build_live_findings(country, pillar, logger, docs_dir, fetcher, extractor):
 
     findings: list[Finding] = []
     for url in seed:
-        doc = _crawl_one(url, country, fetcher, logger)
-        if doc is None:
+        docs = _crawl_seed_documents(url, country, fetcher, logger)
+        if not docs:
             continue
-        try:
-            doc_findings = extractor.extract(doc, pillar)
-        except Exception as exc:  # one bad extraction must not sink the run
-            logger.warning("extract failed url=%s (%s); skipping", url, exc)
-            continue
-        logger.info("extracted %d finding(s) from url=%s", len(doc_findings), url)
-        findings.extend(doc_findings)
-    return findings
+        for doc in docs:
+            try:
+                doc_findings = extractor.extract(doc, pillar)
+            except Exception as exc:  # one bad extraction must not sink the run
+                logger.warning("extract failed url=%s (%s); skipping", doc.url, exc)
+                continue
+            logger.info("extracted %d finding(s) from url=%s", len(doc_findings), doc.url)
+            findings.extend(doc_findings)
+    return _dedupe_live_findings(findings)
 
 
 def _configure_logger(out_dir: str) -> tuple[logging.Logger, str]:

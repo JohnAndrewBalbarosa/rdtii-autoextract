@@ -24,6 +24,12 @@ const SEED: Finding[] = [
     documentTitle: "Personal Data Protection Act 2012",
     articleNumber: "Section 26",
     language: "en",
+    discoveryTag: "KNOWN",
+    verbatimSnippet:
+      "An organisation must not transfer personal data outside Singapore except in accordance with prescribed requirements ensuring a comparable standard of protection.",
+    mappingRationale: "This provision directly restricts cross-border transfer conditions.",
+    locationRef: "Section 26",
+    notes: "",
   },
   {
     id: "vn-decree13-25",
@@ -44,6 +50,12 @@ const SEED: Finding[] = [
     documentTitle: "Decree 13/2023/ND-CP on Personal Data Protection",
     articleNumber: "Article 25",
     language: "vi",
+    discoveryTag: "NEW",
+    verbatimSnippet:
+      "Prior to transferring personal data abroad, the data processor must prepare a transfer impact assessment dossier.",
+    mappingRationale: "This article imposes an impact-assessment condition on transfer.",
+    locationRef: "Article 25",
+    notes: "",
   },
   {
     id: "th-pdpa-37",
@@ -63,6 +75,12 @@ const SEED: Finding[] = [
     documentTitle: "Personal Data Protection Act B.E. 2562 (2019)",
     articleNumber: "Section 37",
     language: "th",
+    discoveryTag: "KNOWN",
+    verbatimSnippet:
+      "The data controller shall provide appropriate security measures to prevent unauthorised access.",
+    mappingRationale: "This section states an explicit security obligation.",
+    locationRef: "Section 37",
+    notes: "Translated source.",
   },
   {
     id: "ph-dpa-20",
@@ -82,6 +100,12 @@ const SEED: Finding[] = [
     documentTitle: "Data Privacy Act of 2012 (RA 10173)",
     articleNumber: "Section 20",
     language: "en",
+    discoveryTag: "KNOWN",
+    verbatimSnippet:
+      "The personal information controller must implement reasonable and appropriate measures intended for protection.",
+    mappingRationale: "This provision imposes controller accountability duties.",
+    locationRef: "Section 20",
+    notes: "",
   },
   {
     id: "my-pdpa-129",
@@ -101,6 +125,12 @@ const SEED: Finding[] = [
     documentTitle: "Personal Data Protection Act 2010",
     articleNumber: "Section 129",
     language: "en",
+    discoveryTag: "KNOWN",
+    verbatimSnippet:
+      "A data user shall not transfer personal data to a place outside Malaysia unless safeguards apply.",
+    mappingRationale: "This section directly restricts outbound transfer.",
+    locationRef: "Section 129",
+    notes: "",
   },
 ];
 
@@ -113,6 +143,36 @@ export function createMockRepository(): FindingsRepository {
     async setReviewStatus(id: string, status: ReviewStatus) {
       const i = store.findIndex((f) => f.id === id);
       if (i >= 0) store[i] = { ...store[i], reviewStatus: status };
+    },
+    async update(id, patch) {
+      const i = store.findIndex((f) => f.id === id);
+      if (i >= 0) {
+        store[i] = { ...store[i], ...patch };
+        return { ...store[i] };
+      }
+      throw new Error(`Finding not found: ${id}`);
+    },
+    async runPipeline() {
+      return store.map((f) => ({ ...f }));
+    },
+    async getStatistics() {
+      const pending = store.filter((f) => f.reviewStatus === "pending").length;
+      const verified = store.filter((f) => f.reviewStatus === "verified").length;
+      const rejected = store.filter((f) => f.reviewStatus === "rejected").length;
+      const reviewed = verified + rejected;
+      return {
+        total: store.length,
+        pending,
+        verified,
+        rejected,
+        reviewed,
+        progress: store.length ? Math.round((reviewed / store.length) * 100) : 0,
+        by_pillar: {
+          "6": store.filter((f) => f.pillar === 6).length,
+          "7": store.filter((f) => f.pillar === 7).length,
+        },
+        metadata: { source_used: "mock" },
+      };
     },
   };
 }

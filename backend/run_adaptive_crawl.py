@@ -12,12 +12,20 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
+from zetarix.transport.factory import TransportFactory  # noqa: E402
 from zetarix.transport.http_client import HttpClient  # noqa: E402
+from zetarix.transport.playwright_client import PlaywrightClient  # noqa: E402
 from zetarix.crawling.adaptive_crawler import (  # noqa: E402
     AdaptiveDomainCrawler,
     CrawlConfig,
 )
-from zetarix.llm.router import LLMRouter  # noqa: E402
+
+
+class HeuristicOnlyLLM:
+    """Crawler-first default: let AdaptiveDomainCrawler use its built-in heuristics."""
+
+    def complete(self, prompt: str, schema: dict, agent_profile: str = "main_controller") -> dict:
+        raise RuntimeError("Crawler CLI is running in heuristic-only mode")
 
 
 def _parse_args(argv=None):
@@ -39,8 +47,8 @@ def _parse_args(argv=None):
 def main(argv=None) -> int:
     args = _parse_args(argv)
     crawler = AdaptiveDomainCrawler(
-        HttpClient(),
-        LLMRouter.from_env(),
+        TransportFactory(HttpClient(), PlaywrightClient()),
+        HeuristicOnlyLLM(),
         config=CrawlConfig(
             max_depth=args.max_depth,
             max_pages=args.max_pages,

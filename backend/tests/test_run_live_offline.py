@@ -85,6 +85,7 @@ def test_live_offline_emits_outputs_with_verbatim_and_section(tmp_path, monkeypa
         assert record["Verbatim Snippet"].strip(), "Verbatim Snippet must be non-empty"
         assert record["Article / Section"].strip(), "Article / Section must be non-empty"
         assert record["Source URL"] == _FIXTURE_URL
+        assert "[exact section text here]" not in record["Verbatim Snippet"]
 
 
 def test_live_offline_is_deterministic(tmp_path, monkeypatch):

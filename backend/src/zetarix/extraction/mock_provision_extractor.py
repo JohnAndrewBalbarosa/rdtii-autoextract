@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from zetarix.domain.document import CrawledDocument
 from zetarix.domain.entities import DiscoveryTag, Finding, Pillar
 from zetarix.domain.indicator_codes import to_canonical
+from zetarix.extraction.document_metadata import extract_document_metadata
 
 # --- Tunables (named constants — no magic numbers) ---------------------------
 
@@ -206,7 +207,10 @@ class MockProvisionExtractor:
         return rationale[:_MAX_RATIONALE_CHARS]
 
     def _derive_title(self, doc: CrawledDocument) -> str:
-        """First substantive line of the text, else a slug from the URL path."""
+        """Best legal-document title, skipping page chrome like "Home"."""
+        title = extract_document_metadata(doc.text or "", url=doc.url or "").act_title
+        if title:
+            return title[:_MAX_SNIPPET_CHARS]
         for line in (doc.text or "").splitlines():
             stripped = line.strip()
             if len(stripped) >= 3:

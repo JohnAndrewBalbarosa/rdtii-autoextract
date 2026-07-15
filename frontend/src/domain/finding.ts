@@ -27,9 +27,48 @@ export interface Finding {
   documentTitle: string;
   articleNumber: string; // e.g. "Article 26"
   language: string; // ISO 639-1
+  discoveryTag: string;
+  verbatimSnippet: string;
+  mappingRationale: string;
+  locationRef: string | null;
+  notes: string;
 }
 
 export const PILLAR_LABEL: Record<Pillar, string> = {
   6: "Cross-border Data Flows",
   7: "Domestic Data Protection",
 };
+
+export interface FindingUpdate {
+  title?: string;
+  scope?: string;
+  provisions?: string;
+  impact?: string;
+  reviewStatus?: ReviewStatus;
+  articleNumber?: string;
+  language?: string;
+  indicatorLabel?: string;
+  notes?: string;
+  verbatimSnippet?: string;
+  mappingRationale?: string;
+  locationRef?: string | null;
+  confidence?: number;
+}
+
+export interface PipelineRunRequest {
+  country: "SG" | "AU" | "MY";
+  pillar: Pillar;
+  source: "live" | "gold";
+  limit?: number;
+}
+
+export interface ReviewStatistics {
+  total: number;
+  pending: number;
+  verified: number;
+  rejected: number;
+  reviewed: number;
+  progress: number;
+  by_pillar: Record<string, number>;
+  metadata: Record<string, unknown>;
+}
